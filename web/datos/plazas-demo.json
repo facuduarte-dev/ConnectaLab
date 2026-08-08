@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "codigo": "CV-001",
+    "zona": "Ciudad Vieja",
+    "lat": -34.906512,
+    "lng": -56.201234,
+    "tipo": "normal",
+    "estado": "libre",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:00:00Z"
+  },
+  {
+    "id": 2,
+    "codigo": "CV-002",
+    "zona": "Ciudad Vieja",
+    "lat": -34.906890,
+    "lng": -56.201010,
+    "tipo": "normal",
+    "estado": "ocupado",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:01:30Z"
+  },
+  {
+    "id": 3,
+    "codigo": "CV-003",
+    "zona": "Ciudad Vieja",
+    "lat": -34.907240,
+    "lng": -56.200780,
+    "tipo": "discapacidad",
+    "estado": "ocupado",
+    "autorizacion": "autorizado",
+    "actualizado_en": "2026-08-08T11:58:00Z"
+  },
+  {
+    "id": 4,
+    "codigo": "CE-001",
+    "zona": "Centro",
+    "lat": -34.906120,
+    "lng": -56.198340,
+    "tipo": "normal",
+    "estado": "libre",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:02:10Z"
+  },
+  {
+    "id": 5,
+    "codigo": "CE-002",
+    "zona": "Centro",
+    "lat": -34.905780,
+    "lng": -56.197560,
+    "tipo": "discapacidad",
+    "estado": "ocupado",
+    "autorizacion": "no_autorizado",
+    "actualizado_en": "2026-08-08T12:03:00Z"
+  },
+  {
+    "id": 6,
+    "codigo": "CE-003",
+    "zona": "Centro",
+    "lat": -34.905410,
+    "lng": -56.196830,
+    "tipo": "normal",
+    "estado": "sin_datos",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T10:15:00Z"
+  },
+  {
+    "id": 7,
+    "codigo": "CE-004",
+    "zona": "Centro",
+    "lat": -34.904990,
+    "lng": -56.195980,
+    "tipo": "carga",
+    "estado": "libre",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:04:20Z"
+  },
+  {
+    "id": 8,
+    "codigo": "CE-005",
+    "zona": "Centro",
+    "lat": -34.904620,
+    "lng": -56.195210,
+    "tipo": "normal",
+    "estado": "reservado",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:00:45Z"
+  },
+
+  {
+    "id": 9,
+    "codigo": "CE-006",
+    "zona": "Centro",
+    "lat": -34.904650,
+    "lng": -56.195210,
+    "tipo": "normal",
+    "estado": "libre",
+    "autorizacion": "no_aplica",
+    "actualizado_en": "2026-08-08T12:00:45Z"
+  }
+]

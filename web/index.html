@@ -1,0 +1,40 @@
+  <!-- Iniciar en LOCALHOST; DE NO SER ASI JS RECHAZA LA CONEXION-->
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ConectaLAB — Mapa de plazas</title>
+
+  <!-- El CSS de Leaflet va ANTES que el nuestro, para poder pisarle estilos -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+  <header class="barra">
+    <h1>Gestion de parking</h1>
+    <p class="subtitulo">Estado de plazas de estacionamiento — Montevideo</p>
+  </header>
+
+  <!-- Leaflet necesita un contenedor con altura definida. Si el div tiene
+       altura 0 el mapa se inicializa igual pero no se ve nada: es el error
+       numero uno cuando "el mapa no aparece". -->
+  <div id="mapa"></div>
+
+  <div class="leyenda">
+    <span><i class="punto libre"></i>Libre</span>
+    <span><i class="punto ocupado"></i>Ocupado</span>
+    <span><i class="punto reservado"></i>Reservado</span>
+    <span><i class="punto sin_datos"></i>Sin datos</span>
+    <span><i class="punto discapacidad"></i>Plaza de discapacidad</span>
+  </div>
+
+  <!-- Leaflet primero, despues nuestro codigo, que depende de el -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/mapa.js"></script>
+</body>
+</html>

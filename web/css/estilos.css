@@ -1,0 +1,72 @@
+:root {
+  --libre:        #2e7d32;
+  --ocupado:      #c62828;
+  --reservado:    #1565c0;
+  --sin_datos:    #757575;
+  --discapacidad: #6a1b9a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1a1a1a;
+}
+
+.barra {
+  padding: 0.75rem 1rem;
+  background: #0d3b66;
+  color: #fff;
+}
+
+.barra h1 { margin: 0; font-size: 1.15rem; letter-spacing: 0.02em; }
+
+.subtitulo { margin: 0.15rem 0 0; font-size: 0.85rem; opacity: 0.8; }
+
+/* Leaflet dibuja dentro de este div y hereda su tamano. Sin una altura
+   concreta el mapa mide 0px de alto y la pantalla queda en blanco. */
+#mapa {
+  height: calc(100vh - 132px);
+  min-height: 320px;
+  width: 100%;
+}
+
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  background: #f4f4f4;
+  border-top: 1px solid #ddd;
+}
+
+.leyenda span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.punto {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.punto.libre        { background: var(--libre); }
+.punto.ocupado      { background: var(--ocupado); }
+.punto.reservado    { background: var(--reservado); }
+.punto.sin_datos    { background: var(--sin_datos); }
+.punto.discapacidad { background: #fff; border-color: var(--discapacidad); }
+
+.popup-plaza h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+.popup-plaza dl { margin: 0; font-size: 0.83rem; }
+.popup-plaza dt { font-weight: 600; float: left; clear: left; margin-right: 0.35rem; }
+.popup-plaza dd { margin: 0 0 0.15rem; }
+
+.error {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  background: #fdecea;
+  color: #8a1c13;
+  font-size: 0.85rem;
+}
