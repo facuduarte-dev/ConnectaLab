@@ -1,0 +1,114 @@
+# ============================================================
+#  SECRETOS  —  lo más importante de este archivo
+#  Cada uno se crea copiando su respectivo .example (sección 10)
+# ============================================================
+
+# Backend: clave de servicio de Supabase, secreto de tokens
+.env
+.env.*
+!.env.example
+api/.env
+
+# Visión: clave del HMAC de matrículas (sección 9.3).
+# Si esta clave se filtra junto con la base, los hashes de matrícula
+# se vuelven reversibles por fuerza bruta.
+vision/config.json
+
+# Firmware: SSID, contraseña de WiFi y token del dispositivo
+firmware/sensor_plaza/credenciales.h
+
+# Claves y certificados sueltos, por si aparecen
+*.pem
+*.key
+!**/*.example.*
+
+
+# ============================================================
+#  DATOS PERSONALES  —  no deben salir de la máquina de visión
+# ============================================================
+
+# Recortes, capturas y frames del pipeline de OCR: son fotos de
+# vehículos y matrículas reales. Dato personal bajo la ley 18.331.
+vision/capturas/
+vision/recortes/
+vision/debug/
+*.mp4
+
+# Padrón de permisos con datos reales (el de prueba va en db/)
+vision/padron*.csv
+
+
+# ============================================================
+#  Node.js  (api/)
+# ============================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+# package-lock.json SÍ se versiona: fija las versiones exactas
+
+
+# ============================================================
+#  Python  (vision/)
+# ============================================================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+
+# ============================================================
+#  Modelos de YOLO
+#  Pesan entre 6 MB y 150 MB. Git no maneja bien binarios grandes
+#  y quedan en el historial para siempre aunque después se borren.
+#  Cómo obtenerlos va documentado en vision/README.
+# ============================================================
+*.pt
+*.onnx
+*.engine
+runs/
+
+
+# ============================================================
+#  Arduino / PlatformIO  (firmware/)
+# ============================================================
+.pio/
+.pioenvs/
+.piolibdeps/
+build/
+*.bin
+*.elf
+*.hex
+
+
+# ============================================================
+#  Base de datos
+#  esquema.sql y datos_prueba.sql SÍ se versionan
+# ============================================================
+db/backups/
+*.dump
+*.sqlite
+*.sqlite3
+
+
+# ============================================================
+#  Editores, sistema operativo y varios
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*~
+
+Thumbs.db
+desktop.ini
+.DS_Store
+
+*.log
+logs/
+tmp/
+
+.claude/settings.local.json
