@@ -9,7 +9,7 @@
 !.env.example
 api/.env
 
-# Visión: clave del HMAC de matrículas (sección 9.3).
+# Visión: clave del HMAC de matrículas (sección 6).
 # Si esta clave se filtra junto con la base, los hashes de matrícula
 # se vuelven reversibles por fuerza bruta.
 vision/config.json
