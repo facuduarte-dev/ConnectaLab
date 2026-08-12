@@ -16,9 +16,9 @@ libre, y las plazas reservadas para personas con discapacidad son ocupadas por
 vehículos sin permiso, sin forma práctica de detectarlo.
 
 **Objetivo:** una plataforma web que muestre en el plano de cada nivel, en
-tiempo real, el estado de cada plaza; y que verifique, mediante lectura de
-matrícula en la entrada, si los vehículos que ocupan plazas reservadas están
-autorizados.
+tiempo real, el estado de cada plaza; y que verifique, mediante una cámara en
+cada plaza reservada que lee la matrícula, si el vehículo que la ocupa está
+autorizado.
 
 **No es objetivo:** el cobro de tarifas, ni el control de la barrera de acceso.
 El sistema informa y alerta; no decide quién entra.
@@ -32,7 +32,7 @@ más serios que tenía el diseño anterior.
 | Problema en vía pública | Cómo lo resuelve el parking privado |
 |---|---|
 | El HC-SR04 se degrada con lluvia, suciedad y cambios de temperatura | Ambiente techado y estable, sensor montado en el cielorraso |
-| El OCR falla de noche, en ángulo y con la chapa sucia | La matrícula se lee en la entrada: vehículo detenido, de frente, con iluminación controlada |
+| El OCR falla de noche, en ángulo y con la chapa sucia | La matrícula se lee en la plaza reservada: vehículo detenido, iluminación artificial constante y tiempo de sobra para reintentar |
 | No existe una API pública del padrón de permisos de la Intendencia | El parking administra su propio padrón de vehículos autorizados |
 | Escala inabarcable: miles de plazas dispersas por la ciudad | Un parking son entre 20 y 200 plazas, con red WiFi propia |
 
@@ -47,24 +47,24 @@ de matrícula. Vigilar la vía pública no lo tenía.
 ### 2.1 Flujo de datos
 
 ```
-Camara de entrada                  Sensor ultrasonico (uno por plaza)
+Camara (solo en plazas reservadas) Sensor ultrasonico (uno por plaza)
       │                                      │
-      │ vehiculo detenido en la barrera      │ detecta un objeto a menos de X cm
+      │ el sensor avisa que llego un auto    │ detecta un objeto a menos de X cm
       ▼                                      ▼
-YOLO + OCR (Python)                   ESP32 ── WiFi ──┐
-      │  lee la matricula                             │
-      │  y la hashea                                  │
+Lector de matriculas (Java)           ESP32 ── WiFi ──┐
+      │  recorta hasta la chapa,                      │
+      │  la lee y la hashea                           │
       ▼                                               │
-POST /api/accesos ─────────────────────────────────┐  │
+POST /api/lecturas ────────────────────────────────┐  │
                                                    ▼  ▼
                                     API REST (Node.js + Express)
                                     valida el token del dispositivo
                                                    │
                                                    ▼
                                     Base de datos (Supabase / PostgreSQL)
-                                    · accesos    quien esta adentro
+                                    · plazas     estado y autorizacion
                                     · eventos    historial de ocupacion
-                                    · plazas     estado actual
+                                    · lecturas   matriculas leidas por plaza
                                                    │
                                                    ▼
                                     Supabase Realtime
@@ -74,44 +74,56 @@ POST /api/accesos ────────────────────�
                                     repinta la plaza que cambio
 ```
 
-### 2.2 La matrícula se lee en la entrada, no en cada plaza
+Los dos flujos no son paralelos del todo: el de la izquierda **arranca por el de
+la derecha**. Cuando el sensor reporta que una plaza reservada se ocupó, es eso
+lo que despierta a la cámara. El lector se entera consultando la API, que es
+quien sabe qué plazas quedaron pendientes de lectura.
 
-Es la decisión de diseño más importante del nuevo enfoque.
+### 2.2 La matrícula se lee en la plaza reservada
 
-En la entrada, el vehículo está **detenido frente a la barrera, de frente, a
-distancia corta y con iluminación controlada**. Son exactamente las condiciones
-en las que el OCR funciona bien. Dentro del parking, en cambio, los autos quedan
-en ángulo, a contraluz y a distancia variable: leer la chapa ahí es el escenario
-difícil.
+Es la decisión de diseño más importante del proyecto: **sólo las plazas de
+discapacidad llevan cámara, y la entrada no lleva ninguna**.
 
-Entonces el sistema no intenta saber *qué auto está en qué plaza*. Sabe dos
-cosas por separado:
+Una cámara por cada plaza sería impracticable —un parking son entre 20 y 200
+plazas—, pero las plazas reservadas son tres o cuatro. A esa escala el costo
+deja de ser un obstáculo, y a cambio el sistema sabe directamente *qué auto está
+en qué plaza reservada*, que es la única pregunta que el proyecto necesita
+responder. No hay que deducirlo por conteo ni saber quién más está adentro.
 
-1. **Quién está adentro**, por la cámara de entrada y salida.
-2. **Qué plazas están ocupadas**, por los sensores.
+**El sensor es el disparador.** La cámara no filma en continuo: se activa cuando
+el sensor de esa plaza reporta que llegó un auto, y se apaga cuando reporta que
+se fue. Eso evita procesar video sin parar y evita tener una cámara grabando una
+plaza las veinticuatro horas.
 
-Y cruza ambas con una regla de conteo:
+**Un auto estacionado es un buen escenario de lectura**, mejor incluso que una
+barrera. Está detenido, a distancia fija y conocida, bajo iluminación artificial
+constante —un subsuelo no tiene noche ni contraluz— y, sobre todo, no hay apuro:
+se pueden tomar decenas de fotos y quedarse con la lectura que más se repite. En
+una barrera habría un segundo y medio para acertar.
 
-> Si la cantidad de plazas de discapacidad ocupadas supera la cantidad de
-> vehículos con permiso de discapacidad actualmente dentro del parking,
-> hay al menos una plaza ocupada indebidamente.
+**Qué se gana al no poner cámara en la entrada.** Además de una cámara menos, el
+sistema deja de registrar a qué hora entró y salió cada usuario del parking. Ese
+historial completo de movimientos era el dato más delicado que podía guardar, y
+con este enfoque no existe: sólo se miran las tres o cuatro plazas reservadas.
 
-Esto elimina la necesidad de una cámara por nivel o por plaza, que era la parte
-más cara e imprecisa del diseño anterior.
+**El costo del cambio es físico, no de software.** Hay que resolver el montaje
+de cada cámara para que la chapa quede visible tanto si el auto entra de frente
+como de culata, y aceptar que un vehículo mal estacionado puede tapar su propia
+matrícula. Cuando eso pasa la lectura queda en `no_verificable`, que nunca
+dispara una alerta por sí sola. Ver la sección 7.5.
 
-**Limitación conocida:** la regla detecta que *hay* una ocupación indebida, pero
-no *cuál* es. Si un vehículo con permiso entra y estaciona en una plaza común
-mientras otro sin permiso toma la de discapacidad, el conteo da correcto y la
-infracción pasa desapercibida. Para resolverlo haría falta una cámara por nivel,
-que queda como mejora futura y está fuera del alcance de este proyecto.
+**Limitación conocida:** el permiso de estacionamiento es de la persona, no del
+vehículo. El titular puede llegar legítimamente en el auto de un familiar o en
+un taxi, y esa lectura va a dar `no_autorizado`. Por eso el sistema nunca
+sanciona: la alerta va siempre a revisión humana.
 
 ### 2.3 El sistema funciona sin cámara
 
 La visión por computadora es una **capa de verificación**, no el camino crítico.
-Los sensores ultrasónicos son la fuente del estado de ocupación; la cámara sólo
-agrega la identificación de vehículos autorizados.
+Los sensores ultrasónicos son la fuente del estado de ocupación; las cámaras
+sólo agregan la identificación del vehículo, y sólo en las plazas reservadas.
 
-Si el servicio de visión está caído, el plano sigue mostrando plazas libres y
+Si el servicio de lectura está caído, el plano sigue mostrando plazas libres y
 ocupadas con normalidad, y las plazas de discapacidad quedan en estado
 `no_verificable`. Esta decisión evita que una falla en la parte más compleja del
 proyecto tire abajo todo lo demás.
@@ -128,8 +140,8 @@ proyecto tire abajo todo lo demás.
 | Base de datos | Supabase (PostgreSQL) | Base de datos, autenticación y tiempo real en un solo servicio, con plan gratuito |
 | Autenticación | Supabase Auth | Resuelve el inicio de sesión sin implementar manejo de contraseñas |
 | Tiempo real | Supabase Realtime | Notifica cambios de fila al navegador sin escribir WebSockets a mano |
-| Visión | Python + ultralytics (YOLO) | YOLO no existe como librería de JavaScript ni corre en el ESP32 |
-| OCR | EasyOCR | Mejor desempeño en matrículas que Tesseract, pensado para texto de documentos |
+| Lectura de matrículas | Java | Ya está desarrollado y probado: recorta la imagen hasta aislar la chapa, la lee y devuelve un valor de confianza |
+| Cámaras | Una por plaza de discapacidad | Son tres o cuatro por parking; el sensor de la plaza les dice cuándo mirar |
 | Firmware | ESP32 DevKit (WROOM-32) | WiFi integrado, pin de 5 V para el sensor, antena de PCB confiable |
 | Sensor | HC-SR04 (ultrasónico) | Bajo costo y disponibilidad local; en ambiente techado su desempeño es bueno |
 
@@ -140,11 +152,19 @@ proyecto tire abajo todo lo demás.
   como rectángulos en coordenadas propias del plano. Esto elimina una dependencia
   externa, el servidor de teselas y la obligación de atribución de la licencia
   ODbL.
-- **Java (Spring Boot):** duplicaría el rol de Node.js sin ganancia funcional.
+- **Java (Spring Boot) como backend:** duplicaría el rol de Node.js sin ganancia
+  funcional. Distinto es Java como herramienta de lectura de matrículas, que sí
+  se usa: ahí no compite con nada y el programa ya está hecho.
 - **MySQL:** Supabase ya provee PostgreSQL. Usar ambos obligaría a sincronizar
   dos bases.
-- **Una cámara por plaza o por nivel:** reemplazada por la cámara única de
-  entrada más la regla de conteo de la sección 2.2.
+- **Cámara única en la entrada:** era el diseño anterior. Obligaba a deducir por
+  conteo si una plaza reservada estaba mal ocupada, sin poder decir cuál, y a
+  registrar las entradas y salidas de todos los usuarios para lograrlo. La
+  cámara por plaza reservada responde la pregunta directamente y guarda menos
+  datos. Ver la sección 2.2.
+- **Detección de vehículos con YOLO:** ya no hace falta. El sensor de la plaza
+  es el que avisa que llegó un auto; no hay que buscarlo dentro de la imagen.
+  Esto elimina del proyecto una dependencia pesada y un modelo por entrenar.
 
 ---
 
@@ -158,9 +178,9 @@ Tres separaciones sostienen el modelo:
   que consulta el plano, tiene pocas filas y responde rápido. `eventos` guarda
   todo lo que pasó, nunca se actualiza ni se borra, y sirve para auditoría y
   estadísticas.
-- **Ocupación contra identidad.** Los sensores escriben en `eventos`; la cámara
-  de entrada escribe en `accesos`. Son dos flujos independientes que sólo se
-  cruzan al evaluar la regla de conteo.
+- **Ocupación contra identidad.** Los sensores escriben en `eventos`; las
+  cámaras escriben en `lecturas`. Son dos flujos independientes sobre la misma
+  plaza: uno dice si hay un auto, el otro dice cuál.
 - **Estado contra autorización.** Una plaza de discapacidad ocupada por un
   vehículo sin permiso sigue estando *ocupada*. Son dos preguntas distintas
   —¿hay un auto? y ¿tiene permiso?— y mezclarlas en un solo campo obligaría a
@@ -222,10 +242,15 @@ create table eventos (
   creado_en timestamptz not null default now()
 );
 
+create type tipo_dispositivo as enum ('sensor', 'camara');
+
+-- Todo dispositivo pertenece a una plaza: los sensores a todas, las camaras
+-- solo a las reservadas. El tipo define que endpoint tiene permitido usar.
 create table dispositivos (
   id                 serial primary key,
   estacionamiento_id integer not null references estacionamientos(id),
-  plaza_id           integer references plazas(id),  -- null en la camara de entrada
+  plaza_id           integer not null references plazas(id),
+  tipo               tipo_dispositivo not null,
   token_hash         text not null,
   descripcion        text,
   activo             boolean not null default true,
@@ -253,23 +278,28 @@ create table vehiculos_autorizados (
   unique (estacionamiento_id, matricula_hash, tipo_permiso)
 );
 
-create type sentido_acceso as enum ('entrada', 'salida');
+create type resultado_lectura as enum (
+  'autorizado', 'no_autorizado', 'no_verificable'
+);
 
--- Registro de la camara de entrada. Se poda a los 30 dias.
-create table accesos (
-  id                 bigserial primary key,
-  estacionamiento_id integer not null references estacionamientos(id),
-  matricula_hash     text,          -- null cuando el OCR no pudo leerla
-  sentido            sentido_acceso not null,
-  confianza          real not null check (confianza between 0 and 1),
-  vehiculo_id        integer references vehiculos_autorizados(id),
-  creado_en          timestamptz not null default now()
+-- Una fila por intento de lectura de la camara de una plaza reservada. No
+-- guarda la matricula ni la imagen: solo el HMAC. Se poda a los 30 dias.
+create table lecturas (
+  id             bigserial primary key,
+  plaza_id       integer not null references plazas(id),
+  matricula_hash text,          -- null cuando el OCR no pudo leerla
+  confianza      real not null check (confianza between 0 and 1),
+  resultado      resultado_lectura not null,
+  vehiculo_id    integer references vehiculos_autorizados(id),
+  creado_en      timestamptz not null default now()
 );
 
 -- Para revision HUMANA. El sistema no sanciona automaticamente.
+-- Ahora la alerta apunta a una plaza concreta, no a un nivel entero.
 create table alertas (
   id           bigserial primary key,
-  nivel_id     integer references niveles(id),
+  plaza_id     integer not null references plazas(id),
+  lectura_id   bigint references lecturas(id),
   motivo       text not null,
   revisada     boolean not null default false,
   revisada_por uuid,
@@ -281,20 +311,21 @@ create table alertas (
 Los usuarios los administra Supabase Auth en su propio esquema; no se crea una
 tabla `usuarios` propia.
 
-### 4.3 Quién está adentro
+### 4.3 Cómo se resuelve la autorización de una plaza
 
-La consulta que sostiene la regla de conteo: un vehículo está dentro si su
-último movimiento registrado fue una entrada.
+`estado` y `autorizacion` avanzan por separado. El sensor mueve el primero; la
+cámara, el segundo. Para una plaza de discapacidad la secuencia completa es:
 
-```sql
-create view vehiculos_dentro as
-select distinct on (a.matricula_hash)
-       a.estacionamiento_id, a.matricula_hash, a.vehiculo_id, a.creado_en
-  from accesos a
- where a.matricula_hash is not null
- order by a.matricula_hash, a.creado_en desc;
--- filtrar despues por sentido = 'entrada'
-```
+| Qué pasó | `estado` | `autorizacion` |
+|---|---|---|
+| El sensor reporta que llegó un auto | `ocupado` | `pendiente` |
+| La cámara leyó y el hash está en el padrón con permiso vigente | `ocupado` | `autorizado` |
+| La cámara leyó con confianza suficiente y el hash no está en el padrón | `ocupado` | `no_autorizado` |
+| La cámara no pudo leer, o leyó con confianza baja | `ocupado` | `no_verificable` |
+| El sensor reporta que se fue | `libre` | `no_aplica` |
+
+En las plazas que no son de discapacidad `autorizacion` vale siempre
+`no_aplica`: no hay cámara y no hay nada que verificar.
 
 ### 4.4 Reglas de negocio
 
@@ -303,8 +334,12 @@ select distinct on (a.matricula_hash)
 - Si una plaza no reporta ningún evento durante 30 minutos pasa a `sin_datos`.
   Es preferible mostrar "sin información" a mostrar información vieja como si
   fuera actual.
-- Cada vez que cambia la ocupación de una plaza de discapacidad, se reevalúa la
-  regla de conteo del nivel.
+- Cuando una plaza de discapacidad pasa a `ocupado`, su autorización queda en
+  `pendiente` y se encola una lectura para su cámara.
+- Si a los 5 minutos no llegó ninguna lectura válida, la autorización pasa a
+  `no_verificable`. Una plaza no puede quedarse en `pendiente` para siempre.
+- Cuando una plaza se libera, su autorización vuelve a `no_aplica`. La
+  autorización describe al vehículo que está ahí, no a la plaza.
 - Un vehículo cuyo permiso venció deja de contar como autorizado desde la fecha
   de vencimiento, aunque siga figurando en la tabla.
 
@@ -327,7 +362,8 @@ Todos los endpoints bajo `/api`.
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/api/eventos` | El ESP32 reporta ocupación de una plaza |
-| `POST` | `/api/accesos` | La cámara de entrada reporta un movimiento |
+| `GET` | `/api/lecturas/pendientes` | Plazas reservadas que acaban de ocuparse y todavía no tienen lectura |
+| `POST` | `/api/lecturas` | La cámara de una plaza reporta una lectura de matrícula |
 
 Cuerpo de `/api/eventos`:
 
@@ -340,20 +376,22 @@ Cuerpo de `/api/eventos`:
 }
 ```
 
-Cuerpo de `/api/accesos` — obsérvese que **no lleva la matrícula**, sólo su
-hash:
+Cuerpo de `/api/lecturas` — obsérvese que **no lleva la matrícula ni la
+imagen**, sólo el hash:
 
 ```json
 {
+  "plaza_id": 1,
   "matricula_hash": "9f86d081884c7d65...",
-  "sentido": "entrada",
   "confianza": 0.93
 }
 ```
 
-Si el OCR no pudo leer nada se envía `"matricula_hash": null`. El acceso queda
-registrado igual, porque el vehículo entró de todos modos; simplemente no se lo
-puede asociar a un permiso.
+Si el OCR no pudo leer nada se envía `"matricula_hash": null` y `"confianza": 0`.
+La lectura se registra igual: saber que se intentó y no se pudo es justamente lo
+que distingue `no_verificable` de `no_autorizado`. El backend resuelve el campo
+`resultado` comparando el hash contra el padrón; el lector no conoce el padrón y
+no decide nada.
 
 El token va en el header `Authorization: Bearer <token>`. El backend verifica
 que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
@@ -364,7 +402,9 @@ que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
 |---|---|---|
 | `PATCH` | `/api/plazas/:id` | Cambio manual de estado |
 | `GET` | `/api/eventos?plaza_id=&desde=&hasta=` | Historial de ocupación |
+| `GET` | `/api/lecturas?plaza_id=` | Historial de lecturas de una plaza reservada |
 | `GET` | `/api/alertas` | Bandeja de alertas pendientes de revisión |
+| `PATCH` | `/api/alertas/:id` | Marcar una alerta como revisada |
 | `POST` | `/api/vehiculos` | Alta de un vehículo autorizado en el padrón |
 | `DELETE` | `/api/vehiculos/:id` | Baja de un vehículo del padrón |
 
@@ -375,31 +415,46 @@ que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
 Una matrícula es un dato personal bajo la ley uruguaya 18.331. El diseño evita
 almacenarla:
 
-- El servicio de visión calcula un **HMAC-SHA256** de la matrícula normalizada,
-  con una clave secreta que vive sólo en esa máquina.
+- El lector de matrículas calcula un **HMAC-SHA256** de la matrícula
+  normalizada, con una clave secreta que vive sólo en esa máquina.
 - Lo único que viaja por la red y se guarda en la base es ese hash.
 - El padrón de vehículos autorizados se genera con la misma función y la misma
   clave, así que comparar permisos es comparar hashes.
 
 **Por qué HMAC y no un SHA-256 pelado:** el espacio de matrículas posibles son
 unos pocos millones de combinaciones. Con un hash sin clave, cualquiera que
-obtenga la base puede probarlas todas en minutos y reconstruir a qué hora entró
-y salió cada vehículo. La clave secreta es lo que vuelve inviable ese ataque.
+obtenga la base puede probarlas todas en minutos y averiguar qué matrícula
+estacionó en qué plaza y a qué hora. La clave secreta es lo que vuelve inviable
+ese ataque.
 
-Además:
+### 6.1 La imagen nunca se guarda
+
+Una cámara apuntando de forma permanente a una plaza reservada capta algo más
+sensible que un paragolpes: capta a personas bajando del auto, transfiriéndose a
+una silla de ruedas. El diseño lo trata como tal:
+
+- **La cámara se dispara por evento del sensor**, no filma en continuo. Fuera de
+  los minutos posteriores a que un auto estacione, no hay nada mirando.
+- **La imagen se procesa en memoria y se descarta.** No se guarda ni se
+  transmite: lo único que sale de esa máquina es un hash y un número de
+  confianza.
+- **No hay cámara en la entrada**, así que el sistema no sabe —ni puede
+  reconstruir— a qué hora entró y salió cada usuario del parking.
+
+### 6.2 Resto de las medidas
 
 - **La clave de servicio de Supabase vive sólo en el backend.** Nunca en el
   firmware ni en el JavaScript del navegador.
 - **El frontend usa la clave pública con Row Level Security activado.** Las
-  políticas permiten leer `plazas` y `niveles`; `accesos` y
+  políticas permiten leer `plazas` y `niveles`; `lecturas` y
   `vehiculos_autorizados` no tienen ninguna política, así que la clave pública
   no las alcanza jamás.
 - **Cada dispositivo tiene su propio token**, guardado hasheado. Si un ESP32 es
   manipulado físicamente se revoca ese token sin afectar al resto.
 - **Los endpoints de dispositivo tienen límite de tasa.** Un sensor con falla no
   debe poder llenar la base.
-- **Los accesos se podan a los 30 días.** No hay razón para conservar el
-  historial de entradas y salidas más allá de eso.
+- **Las lecturas se podan a los 30 días.** No hay razón para conservar el
+  historial de matrículas más allá de eso.
 - **Las credenciales van en variables de entorno**, nunca versionadas.
 
 ---
@@ -464,46 +519,80 @@ Para el prototipo alcanza con **una plaza instrumentada de verdad** y el resto
 simulado desde el panel. Demostrar el ciclo completo sobre una plaza real prueba
 exactamente lo mismo que sesenta.
 
+### 7.5 La cámara de la plaza reservada
+
+Sólo las plazas de discapacidad la llevan. Como son tres o cuatro por parking,
+no hace falta una computadora por cámara: alcanza con cámaras IP sobre la red
+WiFi del parking y **un único proceso que las atiende a todas**.
+
+Lo que hay que resolver en el montaje:
+
+- **Dónde apuntar.** El auto puede estacionar de frente o de culata. En Uruguay
+  lleva chapa adelante y atrás, así que siempre hay una mirando hacia afuera,
+  pero conviene montar la cámara al frente de la plaza, a la altura de la chapa
+  —cerca de 50 cm del piso— y no en el cielorraso: desde arriba la matrícula se
+  ve en escorzo.
+- **Iluminación.** Un subsuelo tiene poca luz, pero constante. La ventaja es que
+  se calibra una vez y no cambia con la hora ni con el clima. Si hace falta, un
+  foco fijo sobre la plaza resuelve el problema de una vez y para siempre.
+- **Oclusión.** Un auto mal estacionado puede tapar su propia matrícula, y una
+  persona parada delante también. No es un caso a evitar: es un caso a manejar,
+  y se maneja dejando la lectura en `no_verificable`.
+
+La cámara no necesita token propio si el proceso que la atiende ya lo tiene: el
+dispositivo que se autentica contra la API es el proceso, y reporta indicando a
+qué plaza corresponde cada lectura.
+
 ---
 
-## 8. Servicio de visión
+## 8. Servicio de lectura de matrículas
 
-Proceso Python independiente, corriendo en una computadora junto a la entrada.
+Proceso Java independiente, corriendo en una computadora del parking, que
+atiende las cámaras de todas las plazas reservadas.
 
-- Modelo: YOLO preentrenado en COCO, que ya reconoce `car`, `truck`, `bus` y
-  `motorcycle` sin entrenar nada propio.
-- Entrada: cámara de celular usada como cámara IP, o webcam USB, apuntada a la
-  zona de la barrera.
-- Dispara cuando detecta un vehículo detenido en la zona de lectura.
-- Salida: `POST /api/accesos` con el hash de la matrícula y la confianza.
+Su ciclo es simple porque el sensor le hizo la parte difícil:
 
-El sentido —entrada o salida— se determina por la cámara que lo reporta: una
-para cada carril. Con un solo carril, se infiere del último movimiento de ese
-mismo vehículo.
+1. Le pregunta a la API qué plazas reservadas acaban de ocuparse y todavía no
+   tienen lectura (`GET /api/lecturas/pendientes`, cada pocos segundos; con tres
+   o cuatro plazas, consultar por *polling* no justifica nada más elaborado).
+2. Toma varias fotos de la cámara de esa plaza a lo largo de un minuto.
+3. Sobre cada foto corre el lector: recorta la imagen hasta aislar la chapa, la
+   lee y devuelve el texto con un valor de confianza.
+4. Se queda con **la lectura que más se repite** entre todas las fotos. Que un
+   auto estacionado no se mueva es lo que permite este lujo, y es la mejor
+   defensa contra una lectura equivocada: un error de OCR rara vez se repite
+   igual muchas veces seguidas.
+5. Calcula el HMAC de esa matrícula y hace `POST /api/lecturas`.
+
+Nótese que el servicio **no consulta el padrón ni decide si el vehículo está
+autorizado**. Sólo lee y hashea. Quien compara contra el padrón es el backend,
+que es el único que tiene por qué conocerlo.
 
 ---
 
 ## 9. Lectura de matrículas por OCR
 
-### 9.1 El pipeline
+Esta parte **ya está desarrollada y probada** en un programa Java propio, contra
+fotos fijas. Lo que sigue describe cómo funciona y cómo se integra.
 
-Cuatro etapas encadenadas; cada una recibe el recorte que produjo la anterior:
+### 9.1 El pipeline
 
 | # | Etapa | Qué hace |
 |---|---|---|
-| 1 | Detección del vehículo | YOLO encuentra el auto detenido en la zona de lectura |
-| 2 | Localización de la chapa | Un segundo modelo busca la matrícula **dentro del recorte del auto** |
-| 3 | Rectificación | Corrige perspectiva, pasa a escala de grises y binariza |
-| 4 | OCR y normalización | EasyOCR lee el texto y se lo valida contra el formato de matrícula |
+| 1 | Recorte progresivo | El programa va recortando la foto hasta aislar la matrícula |
+| 2 | Lectura | Sobre ese recorte lee el texto y devuelve un valor de confianza |
+| 3 | Normalización | Se limpia el texto y se lo valida contra el formato de matrícula |
+| 4 | Hasheo | Se calcula el HMAC-SHA256 de la matrícula ya normalizada |
 
-**Por qué la etapa 2 trabaja sobre el recorte y no sobre la imagen completa:**
-buscar una chapa en toda la escena produce muchos más falsos positivos
-—carteles, señalización, chapas de otros vehículos—. Acotar la búsqueda al área
-donde ya se sabe que hay un auto mejora la precisión de forma notable.
+**No hay etapa de detección del vehículo.** El diseño anterior empezaba con YOLO
+buscando el auto dentro de la escena, para después buscar la chapa dentro del
+auto. Con una cámara dedicada a una sola plaza y un sensor que avisa cuándo hay
+alguien en ella, esa etapa no aporta: ya se sabe que hay un auto y ya se sabe
+dónde. Se ahorra un modelo, una dependencia pesada y bastante tiempo de cómputo.
 
-**Por qué la etapa 3 sigue siendo necesaria** aunque el vehículo esté de frente:
-la cámara nunca queda perfectamente alineada con la chapa, y una corrección de
-perspectiva leve mejora el reconocimiento igual.
+**La confianza no es un adorno.** Es el número que separa "no pude leer" de "leí
+y no tiene permiso", y de esa distinción depende que una lectura fallida no se
+convierta en una falsa infracción. Ver 9.3.
 
 ### 9.2 Normalización
 
@@ -524,9 +613,9 @@ El patrón es configurable porque conviven formatos anteriores al Mercosur.
 
 | Resultado | Cuándo | Consecuencia |
 |---|---|---|
-| `autorizado` | Hash presente en el padrón con permiso vigente | El vehículo cuenta como autorizado mientras esté adentro |
-| `no_autorizado` | Hash leído con confianza ≥ 0,80 y ausente del padrón | Cuenta como vehículo común |
-| `no_verificable` | El OCR no leyó nada, o con confianza < 0,80 | No se lo puede asociar a ningún permiso |
+| `autorizado` | Hash presente en el padrón con permiso vigente | La plaza queda en verde: el vehículo puede estar ahí |
+| `no_autorizado` | Hash leído con confianza ≥ 0,80 y ausente del padrón | Se genera una alerta para revisión humana |
+| `no_verificable` | El OCR no leyó nada, o con confianza < 0,80 | No se lo puede asociar a ningún permiso, y **no** se genera alerta |
 
 **No poder leer la matrícula no es lo mismo que leerla y que no tenga permiso.**
 Confundirlas convertiría cada lectura fallida en una falsa infracción. Por eso
@@ -535,15 +624,18 @@ mismo.
 
 ### 9.4 Qué gatilla una alerta
 
-Una alerta se genera cuando, en un nivel, la cantidad de plazas de discapacidad
-ocupadas supera la cantidad de vehículos con permiso de discapacidad
-actualmente dentro del parking.
+Una sola cosa: **una plaza de discapacidad cuya lectura dio `no_autorizado`**.
+La alerta nombra la plaza, porque la cámara pertenece a esa plaza y a ninguna
+otra. No hay deducción por conteo ni ambigüedad sobre cuál es.
 
-La alerta va a una **bandeja de revisión humana**. El sistema no sanciona: el
-permiso de estacionamiento es de la persona y no del vehículo, así que el
-titular puede legítimamente llegar en el auto de un familiar o en un taxi. Y si
-hay lecturas `no_verificable` en la última hora, la alerta se marca como de baja
-confianza, porque el conteo pudo haber fallado.
+Una lectura `no_verificable` **nunca** genera una alerta. No poder leer la
+matrícula no es lo mismo que leerla y que no tenga permiso; confundirlas
+convertiría cada foto borrosa en una acusación.
+
+La alerta va a una **bandeja de revisión humana** y el sistema no sanciona. La
+razón está en 2.2: el permiso es de la persona, no del vehículo, así que un
+`no_autorizado` legítimo es perfectamente posible y sólo una persona puede
+resolverlo.
 
 ---
 
@@ -557,23 +649,22 @@ ConnectaLab/
 │   ├── css/estilos.css
 │   ├── js/
 │   │   ├── api.js                Capa de datos (demo o API real)
-│   │   ├── plano.js              Dibujo del plano en SVG
+│   │   ├── plano.js              Plano SVG y selector de niveles
 │   │   └── admin.js
 │   └── datos/plazas-demo.json    Datos de fase 2, sin backend
 ├── api/                          Backend Node.js + Express
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── db.js                 Cliente de Supabase (clave de servicio)
-│   │   ├── rutas/                niveles, plazas, eventos, accesos, vehiculos
+│   │   ├── rutas/                niveles, plazas, eventos, lecturas, vehiculos
 │   │   └── middleware/           autenticarDispositivo, autenticarUsuario
 │   ├── scripts/generar-token.js  Tokens de dispositivo
 │   ├── package.json
 │   └── .env.example
-├── vision/                       Servicio Python
-│   ├── entrada.py                Bucle de cámara de la barrera
-│   ├── ocr_matricula.py          Pipeline de OCR y hasheo
-│   ├── config.example.json
-│   └── requirements.txt
+├── vision/                       Lector de matrículas (Java)
+│   ├── src/                      Recorte, lectura, normalización y hasheo
+│   ├── config.example.json       Cámaras, URL de la API y clave del HMAC
+│   └── README.md                 Cómo compilarlo y calibrar las cámaras
 ├── firmware/                     ESP32
 │   ├── README.md                 Conexionado y calibración
 │   └── sensor_plaza/
@@ -590,6 +681,9 @@ ConnectaLab/
 Los tres archivos con secretos —`api/.env`, `vision/config.json` y
 `firmware/sensor_plaza/credenciales.h`— están en `.gitignore` y se crean
 copiando su respectivo `.example`.
+
+Al día de hoy sólo `web/` tiene archivos reales; el resto del árbol es la
+estructura a la que apunta el proyecto y se va llenando fase por fase.
 
 ---
 
@@ -622,16 +716,13 @@ Tiene que servirse por HTTP, no abrirse como archivo: con `file://` el navegador
 bloquea el `fetch` del JSON. La fuente de datos se controla con la constante
 `MODO` en `web/js/api.js`.
 
-### Servicio de visión (opcional)
+### Lector de matrículas (opcional)
 
-```bash
-cd vision
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-cp config.example.json config.json
-python entrada.py
-```
+Se compila y se corre según se explica en `vision/README.md`. Antes de
+arrancarlo hay que copiar `config.example.json` a `config.json` y completar la
+URL de la API, el token del dispositivo, la dirección de cada cámara y la clave
+del HMAC. Esa clave tiene que ser **la misma** con la que se generó el padrón de
+vehículos autorizados, o ningún hash va a coincidir.
 
 ### Firmware (opcional)
 
@@ -647,20 +738,28 @@ hardware**: un retraso en la compra o una falla del ESP32 no bloquea el avance.
 | # | Fase | Entregable | Hardware | Estado |
 |---|---|---|---|---|
 | 1 | Repositorio | Estructura, esquema SQL, documentación | No | Hecho |
-| 2 | Plano estático | Plano SVG de un nivel con plazas de colores desde un JSON local | No | En curso |
+| 2 | Plano estático | Plano SVG con selector de niveles y plazas de colores desde un JSON local | No | Hecho |
 | 3 | Base de datos y API | Tablas en Supabase, `GET /api/plazas`, el plano consume la API | No | Pendiente |
 | 4 | Autenticación y panel | Login con Supabase Auth, cambio manual de estados | No | Pendiente |
 | 5 | Tiempo real | El plano se repinta solo al cambiar un estado | No | Pendiente |
 | 6 | Hardware | ESP32 + HC-SR04 reportando una plaza real | Sí | Pendiente |
-| 7 | Cámara de entrada | YOLO detectando vehículos en la barrera | Sí | Pendiente |
-| 8 | OCR y padrón | Lectura de matrícula, padrón de autorizados, regla de conteo | Sí | Pendiente |
+| 7 | Cámara en la plaza | La cámara se dispara con el sensor y el lector Java devuelve el hash | Sí | Pendiente |
+| 8 | Padrón y alertas | Padrón de autorizados, resolución de la autorización y bandeja de revisión | Sí | Pendiente |
+
+Fuera de esta tabla, el lector de matrículas —lo que en el plan original era la
+parte más riesgosa— **ya está desarrollado y probado sobre fotos fijas**. La
+fase 7 no es escribirlo: es montarlo, calibrarlo y conectarlo.
+
+El criterio de aceptación de la fase 3 conviene tenerlo escrito: se cambia la
+constante `MODO` de `demo` a `real` y **la página tiene que verse idéntica**. Si
+eso pasa, la separación entre la capa de datos y el plano era correcta.
 
 Al terminar la fase 5 el sistema es demostrable de punta a punta: se cambia un
 estado en el panel y el plano de otra computadora se actualiza al instante. La
 fase 6 sólo reemplaza el clic manual por un sensor real.
 
-La fase 8 depende de la 7 y es la de mayor riesgo técnico. Está última a
-propósito: el proyecto es completo y defendible sin ella.
+La fase 8 depende de la 7. El riesgo que queda en ambas ya no es de software
+sino de instalación: dónde se monta la cámara y si la chapa queda visible.
 
 ---
 
@@ -669,11 +768,11 @@ propósito: el proyecto es completo y defendible sin ella.
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
 | El ESP32 no llega a tiempo o se daña | Alto | Fases 1-5 no lo requieren; el panel manual simula el sensor. Comprar una placa de repuesto |
-| El OCR lee mal y se marca a alguien como infractor | Alto | Umbral de 0,80; validación de formato; `no_verificable` separado de `no_autorizado`; revisión humana obligatoria |
-| Filtración de la base con el historial de accesos | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; tablas sin política RLS |
-| No conseguir pesos preentrenados para detectar chapas | Medio | El sistema funciona sin OCR: todo queda en `no_verificable` |
-| YOLO demasiado lento en la computadora disponible | Medio | Sólo procesa cuando hay un vehículo detenido, no en continuo; modelo `n` (nano) |
-| La regla de conteo no identifica cuál plaza está mal ocupada | Medio | Documentado como limitación conocida; requiere cámara por nivel, fuera de alcance |
+| El OCR lee mal y se marca a alguien como infractor | Alto | Umbral de 0,80; validación de formato; se exige la lectura repetida en varias fotos; `no_verificable` separado de `no_autorizado`; revisión humana obligatoria |
+| Filtración de la base con el historial de lecturas | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; tablas sin política RLS |
+| La cámara no consigue un ángulo con la chapa visible | Medio | Montaje al frente de la plaza y a la altura de la matrícula; probar con el auto de frente y de culata; sin lectura no hay alerta, queda en `no_verificable` |
+| La cámara capta a personas bajando del auto | Medio | Se dispara sólo por evento del sensor; la imagen se procesa en memoria y no se guarda nunca |
+| Una cámara por plaza reservada encarece la instalación | Bajo | Son tres o cuatro por parking, no una por plaza; cámaras IP sobre la red existente y un solo proceso que las atiende |
 | Un sensor por plaza no escala en costo | Medio | Multiplexar 8-12 sensores por ESP32; para el prototipo, una plaza real y el resto simulado |
 
 ---
