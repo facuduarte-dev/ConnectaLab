@@ -2,8 +2,13 @@
   --libre:        #2e7d32;
   --ocupado:      #c62828;
   --reservado:    #1565c0;
-  --sin_datos:    #757575;
+  --sin_datos:    #9e9e9e;
   --discapacidad: #6a1b9a;
+
+  --piso:         #e9ecef;
+  --linea:        #c4c9d0;
+  --texto:        #1a1a1a;
+  --azul:         #0d3b66;
 }
 
 * { box-sizing: border-box; }
@@ -11,12 +16,13 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: #1a1a1a;
+  color: var(--texto);
+  background: #f7f8fa;
 }
 
 .barra {
   padding: 0.75rem 1rem;
-  background: #0d3b66;
+  background: var(--azul);
   color: #fff;
 }
 
@@ -24,49 +30,308 @@ body {
 
 .subtitulo { margin: 0.15rem 0 0; font-size: 0.85rem; opacity: 0.8; }
 
-/* Leaflet dibuja dentro de este div y hereda su tamano. Sin una altura
-   concreta el mapa mide 0px de alto y la pantalla queda en blanco. */
-#mapa {
-  height: calc(100vh - 132px);
-  min-height: 320px;
-  width: 100%;
+/* Tres columnas: los planos chicos de cada nivel, el plano grande y el
+   detalle. El plano grande es el que manda y las otras dos lo acompanan.
+
+   Debajo de 1100px el riel de niveles pasa a ser una fila horizontal arriba de
+   todo, y debajo de 860px queda una sola columna: un panel de 260px al lado de
+   un plano angosto no deja lugar para ninguno de los dos. */
+.contenido {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 260px;
+  grid-template-areas: "niveles plano detalle";
+  gap: 1rem;
+  padding: 1rem;
+  align-items: start;
 }
+
+.niveles { grid-area: niveles; }
+.panel   { grid-area: plano; }
+.detalle { grid-area: detalle; }
+
+@media (max-width: 1100px) {
+  .contenido {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    grid-template-areas:
+      "niveles niveles"
+      "plano   detalle";
+  }
+
+}
+
+@media (max-width: 860px) {
+  .contenido {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "niveles" "plano" "detalle";
+  }
+}
+
+.niveles,
+.panel,
+.detalle {
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  padding: 0.9rem;
+}
+
+/* --- selector de niveles --- */
+
+.niveles h2 { margin: 0 0 0.6rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+
+.lista-niveles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cuando el riel pasa arriba de todo (ver la media query de .contenido) los
+   planos chicos se acuestan en fila. Va aca y no alla arriba porque una media
+   query no gana por ser media query: si estuviera antes que .lista-niveles, la
+   regla base la pisaria por orden de cascada. */
+@media (max-width: 1100px) {
+  .lista-niveles {
+    flex-direction: row;
+    overflow-x: auto;   /* que scrollee el riel, no la pagina entera */
+    padding-bottom: 0.3rem;
+  }
+
+  .lista-niveles li { flex: 0 0 150px; }
+}
+
+.nivel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 5px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nivel:hover { border-color: var(--azul); }
+
+.nivel:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+
+/* El nivel que se esta mirando: borde azul y fondo tenue. No alcanza con el
+   color del borde solo, que en el hover es el mismo. */
+.nivel.activo {
+  border-color: var(--azul);
+  background: #eef3f8;
+  box-shadow: inset 0 0 0 1px var(--azul);
+}
+
+.nivel .nombre { font-size: 0.8rem; font-weight: 600; }
+
+.nivel .libres { font-size: 0.72rem; color: #6b7280; }
+
+.mini-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* En el plano chico las plazas no se pueden clickear: el que recibe el clic es
+   el boton entero. Sin esto, el clic sobre un rectangulo igual llega al boton,
+   pero el cursor cambiaria y confundiria. */
+.mini-plaza { pointer-events: none; }
+
+.mini-plaza.estado-libre     { fill: var(--libre); }
+.mini-plaza.estado-ocupado   { fill: var(--ocupado); }
+.mini-plaza.estado-reservado { fill: var(--reservado); }
+.mini-plaza.estado-sin_datos { fill: #d6d8dc; }
+
+.mini-plaza.tipo-discapacidad {
+  stroke: var(--discapacidad);
+  stroke-width: 6;   /* en unidades del viewBox: al escalar queda ~1px */
+}
+
+.encabezado-nivel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.encabezado-nivel h2 { margin: 0; font-size: 1rem; }
+
+/* --- resumen de estados --- */
+
+.resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.contador {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.contador strong { font-size: 0.9rem; }
+
+.contador.estado-libre     { color: var(--libre); }
+.contador.estado-ocupado   { color: var(--ocupado); }
+.contador.estado-reservado { color: var(--reservado); }
+.contador.estado-sin_datos { color: var(--sin_datos); }
+
+/* --- plano --- */
+
+.plano { display: flex; justify-content: center; }
+
+/* El viewBox fija la proporcion, asi que el alto sale solo del ancho. En una
+   pantalla ancha eso deja el plano mas alto que la ventana y obliga a
+   scrollear para ver la fila de abajo: el max-height lo evita. El dibujo se
+   centra solo dentro del hueco sobrante (preserveAspectRatio por defecto). */
+.plano-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 15rem);
+}
+
+.piso {
+  fill: var(--piso);
+  stroke: var(--linea);
+}
+
+/* Las referencias son contexto del plano, no datos: quedan al fondo, en gris
+   y con borde punteado para que no compitan con las plazas. */
+.referencia rect {
+  fill: #fff;
+  stroke: var(--linea);
+  stroke-dasharray: 4 3;
+}
+
+.referencia text {
+  fill: #6b7280;
+  font-size: 9px;
+}
+
+.plaza { cursor: pointer; }
+
+.plaza rect {
+  stroke: #fff;
+  stroke-width: 2;
+  transition: opacity 0.1s;
+}
+
+.plaza:hover rect { opacity: 0.8; }
+
+/* El contorno del foco del navegador no se ve bien sobre un <g> del SVG, asi
+   que el estado de foco se dibuja igual que el de seleccion. */
+.plaza:focus { outline: none; }
+
+.plaza:focus rect,
+.plaza.seleccionada rect {
+  stroke: #111;
+  stroke-width: 3;
+}
+
+.plaza .codigo {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #fff;
+  pointer-events: none;   /* el clic tiene que llegar al <g>, no al texto */
+}
+
+.plaza .marca {
+  font-size: 9px;
+  fill: #fff;
+  pointer-events: none;
+}
+
+.plaza .marca-discapacidad { font-size: 15px; }
+
+.plaza.estado-libre rect     { fill: var(--libre); }
+.plaza.estado-ocupado rect   { fill: var(--ocupado); }
+.plaza.estado-reservado rect { fill: var(--reservado); }
+
+/* Sin datos no es un estado mas: es la ausencia de informacion. Va apagado y
+   con el texto oscuro para que no se lea como una plaza reportando. */
+.plaza.estado-sin_datos rect   { fill: #d6d8dc; stroke: var(--sin_datos); }
+.plaza.estado-sin_datos .codigo,
+.plaza.estado-sin_datos .marca { fill: #4b5057; }
+
+/* El tipo de plaza no puede ir por color de relleno: ese color ya lo usa el
+   estado. Se distingue por el borde violeta. */
+.plaza.tipo-discapacidad rect {
+  stroke: var(--discapacidad);
+  stroke-width: 3;
+}
+
+.plaza.tipo-discapacidad:focus rect,
+.plaza.tipo-discapacidad.seleccionada rect {
+  stroke: #111;
+}
+
+/* --- leyenda --- */
 
 .leyenda {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
-  background: #f4f4f4;
-  border-top: 1px solid #ddd;
+  margin: 0.9rem 0 0;
+  padding: 0.6rem 0 0;
+  list-style: none;
+  font-size: 0.8rem;
+  border-top: 1px solid #e2e5ea;
 }
 
-.leyenda span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.leyenda li { display: inline-flex; align-items: center; gap: 0.4rem; }
 
-.punto {
+.muestra {
   width: 0.85rem;
   height: 0.85rem;
-  border-radius: 50%;
+  border-radius: 2px;
   border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
-.punto.libre        { background: var(--libre); }
-.punto.ocupado      { background: var(--ocupado); }
-.punto.reservado    { background: var(--reservado); }
-.punto.sin_datos    { background: var(--sin_datos); }
-.punto.discapacidad { background: #fff; border-color: var(--discapacidad); }
+.muestra.estado-libre        { background: var(--libre); }
+.muestra.estado-ocupado      { background: var(--ocupado); }
+.muestra.estado-reservado    { background: var(--reservado); }
+.muestra.estado-sin_datos    { background: #d6d8dc; }
+.muestra.tipo-discapacidad   { background: #fff; border-color: var(--discapacidad); }
 
-.popup-plaza h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
-.popup-plaza dl { margin: 0; font-size: 0.83rem; }
-.popup-plaza dt { font-weight: 600; float: left; clear: left; margin-right: 0.35rem; }
-.popup-plaza dd { margin: 0 0 0.15rem; }
+/* --- detalle --- */
+
+.detalle h2 { margin: 0 0 0.6rem; font-size: 0.95rem; }
+
+.detalle .vacio { margin: 0; font-size: 0.83rem; color: #6b7280; }
+
+.detalle dl { margin: 0; font-size: 0.83rem; }
+.detalle dt { font-weight: 600; color: #6b7280; margin-top: 0.5rem; }
+.detalle dd { margin: 0.1rem 0 0; }
 
 .error {
   margin: 0;
-  padding: 0.6rem 1rem;
+  padding: 0.6rem 0.8rem;
   background: #fdecea;
   color: #8a1c13;
+  border-radius: 4px;
   font-size: 0.85rem;
+}
+
+.pie {
+  padding: 0 1rem 1.2rem;
+  font-size: 0.78rem;
+  color: #6b7280;
 }

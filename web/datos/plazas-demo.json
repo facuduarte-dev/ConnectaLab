@@ -1,102 +1,129 @@
-[
-  {
-    "id": 1,
-    "codigo": "CV-001",
-    "zona": "Ciudad Vieja",
-    "lat": -34.906512,
-    "lng": -56.201234,
-    "tipo": "normal",
-    "estado": "libre",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:00:00Z"
-  },
-  {
-    "id": 2,
-    "codigo": "CV-002",
-    "zona": "Ciudad Vieja",
-    "lat": -34.906890,
-    "lng": -56.201010,
-    "tipo": "normal",
-    "estado": "ocupado",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:01:30Z"
-  },
-  {
-    "id": 3,
-    "codigo": "CV-003",
-    "zona": "Ciudad Vieja",
-    "lat": -34.907240,
-    "lng": -56.200780,
-    "tipo": "discapacidad",
-    "estado": "ocupado",
-    "autorizacion": "autorizado",
-    "actualizado_en": "2026-08-08T11:58:00Z"
-  },
-  {
-    "id": 4,
-    "codigo": "CE-001",
-    "zona": "Centro",
-    "lat": -34.906120,
-    "lng": -56.198340,
-    "tipo": "normal",
-    "estado": "libre",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:02:10Z"
-  },
-  {
-    "id": 5,
-    "codigo": "CE-002",
-    "zona": "Centro",
-    "lat": -34.905780,
-    "lng": -56.197560,
-    "tipo": "discapacidad",
-    "estado": "ocupado",
-    "autorizacion": "no_autorizado",
-    "actualizado_en": "2026-08-08T12:03:00Z"
-  },
-  {
-    "id": 6,
-    "codigo": "CE-003",
-    "zona": "Centro",
-    "lat": -34.905410,
-    "lng": -56.196830,
-    "tipo": "normal",
-    "estado": "sin_datos",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T10:15:00Z"
-  },
-  {
-    "id": 7,
-    "codigo": "CE-004",
-    "zona": "Centro",
-    "lat": -34.904990,
-    "lng": -56.195980,
-    "tipo": "carga",
-    "estado": "libre",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:04:20Z"
-  },
-  {
-    "id": 8,
-    "codigo": "CE-005",
-    "zona": "Centro",
-    "lat": -34.904620,
-    "lng": -56.195210,
-    "tipo": "normal",
-    "estado": "reservado",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:00:45Z"
-  },
+{
+  "_comentario": "Datos de la fase 2. Sin backend. La forma de 'niveles' y 'plazas' es la misma que van a devolver GET /api/niveles y GET /api/plazas?nivel_id=, para que el cambio a la fase 3 no obligue a tocar el plano. x, y, ancho y alto son coordenadas del PLANO, no geograficas. Cada nivel tiene sus propias dimensiones: el subsuelo 2 es mas chico que los otros dos.",
 
-  {
-    "id": 9,
-    "codigo": "CE-006",
-    "zona": "Centro",
-    "lat": -34.904650,
-    "lng": -56.195210,
-    "tipo": "normal",
-    "estado": "libre",
-    "autorizacion": "no_aplica",
-    "actualizado_en": "2026-08-08T12:00:45Z"
-  }
-]
+  "niveles": [
+    {
+      "id": 2,
+      "estacionamiento_id": 1,
+      "estacionamiento": "Parking Ciudad Vieja",
+      "nombre": "Planta baja",
+      "orden": 1,
+      "ancho_plano": 580,
+      "alto_plano": 400
+    },
+    {
+      "id": 1,
+      "estacionamiento_id": 1,
+      "estacionamiento": "Parking Ciudad Vieja",
+      "nombre": "Subsuelo 1",
+      "orden": 2,
+      "ancho_plano": 580,
+      "alto_plano": 520
+    },
+    {
+      "id": 3,
+      "estacionamiento_id": 1,
+      "estacionamiento": "Parking Ciudad Vieja",
+      "nombre": "Subsuelo 2",
+      "orden": 3,
+      "ancho_plano": 480,
+      "alto_plano": 520
+    }
+  ],
+
+  "referencias": [
+    { "nivel_id": 2, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
+    { "nivel_id": 2, "tipo": "camara", "x": 30,  "y": 340, "ancho": 190, "alto": 28, "etiqueta": "Barrera y cámara de entrada" },
+    { "nivel_id": 2, "tipo": "rampa",  "x": 380, "y": 330, "ancho": 200, "alto": 70, "etiqueta": "Rampa al subsuelo 1" },
+
+    { "nivel_id": 1, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
+    { "nivel_id": 1, "tipo": "rampa",  "x": 0,   "y": 440, "ancho": 190, "alto": 80, "etiqueta": "Rampa a planta baja y subsuelo 2" },
+
+    { "nivel_id": 3, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
+    { "nivel_id": 3, "tipo": "rampa",  "x": 0,   "y": 440, "ancho": 180, "alto": 80, "etiqueta": "Rampa al subsuelo 1" }
+  ],
+
+  "plazas": [
+    { "id": 31, "nivel_id": 2, "codigo": "A01", "x": 50,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "autorizado",    "actualizado_en": "2026-08-11T08:52:00Z" },
+    { "id": 32, "nivel_id": 2, "codigo": "A02", "x": 98,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "no_autorizado", "actualizado_en": "2026-08-11T09:27:00Z" },
+    { "id": 33, "nivel_id": 2, "codigo": "A03", "x": 146, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T07:41:00Z" },
+    { "id": 34, "nivel_id": 2, "codigo": "A04", "x": 194, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:09:00Z" },
+    { "id": 35, "nivel_id": 2, "codigo": "A05", "x": 242, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T09:30:00Z" },
+    { "id": 36, "nivel_id": 2, "codigo": "A06", "x": 290, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T07:18:00Z" },
+    { "id": 37, "nivel_id": 2, "codigo": "A07", "x": 338, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:33:00Z" },
+    { "id": 38, "nivel_id": 2, "codigo": "A08", "x": 386, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "reservado", "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T06:58:00Z" },
+    { "id": 39, "nivel_id": 2, "codigo": "A09", "x": 434, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:21:00Z" },
+    { "id": 40, "nivel_id": 2, "codigo": "A10", "x": 482, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T07:04:00Z" },
+
+    { "id": 41, "nivel_id": 2, "codigo": "B01", "x": 50,  "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:15:00Z" },
+    { "id": 42, "nivel_id": 2, "codigo": "B02", "x": 98,  "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T09:19:00Z" },
+    { "id": 43, "nivel_id": 2, "codigo": "B03", "x": 146, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T07:37:00Z" },
+    { "id": 44, "nivel_id": 2, "codigo": "B04", "x": 194, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:44:00Z" },
+    { "id": 45, "nivel_id": 2, "codigo": "B05", "x": 242, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T06:47:00Z" },
+    { "id": 46, "nivel_id": 2, "codigo": "B06", "x": 290, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "sin_datos", "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T05:12:00Z" },
+    { "id": 47, "nivel_id": 2, "codigo": "B07", "x": 338, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T08:29:00Z" },
+    { "id": 48, "nivel_id": 2, "codigo": "B08", "x": 386, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T07:52:00Z" },
+    { "id": 49, "nivel_id": 2, "codigo": "B09", "x": 434, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T09:23:00Z" },
+    { "id": 50, "nivel_id": 2, "codigo": "B10", "x": 482, "y": 240, "ancho": 40, "alto": 80, "tipo": "carga",        "estado": "libre",     "autorizacion": "no_aplica",     "actualizado_en": "2026-08-11T09:05:00Z" },
+
+    { "id": 1,  "nivel_id": 1, "codigo": "A01", "x": 50,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "autorizado",     "actualizado_en": "2026-08-11T09:14:00Z" },
+    { "id": 2,  "nivel_id": 1, "codigo": "A02", "x": 98,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "no_verificable", "actualizado_en": "2026-08-11T09:31:00Z" },
+    { "id": 3,  "nivel_id": 1, "codigo": "A03", "x": 146, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:02:00Z" },
+    { "id": 4,  "nivel_id": 1, "codigo": "A04", "x": 194, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:47:00Z" },
+    { "id": 5,  "nivel_id": 1, "codigo": "A05", "x": 242, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:12:00Z" },
+    { "id": 6,  "nivel_id": 1, "codigo": "A06", "x": 290, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:20:00Z" },
+    { "id": 7,  "nivel_id": 1, "codigo": "A07", "x": 338, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "reservado", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:55:00Z" },
+    { "id": 8,  "nivel_id": 1, "codigo": "A08", "x": 386, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:26:00Z" },
+    { "id": 9,  "nivel_id": 1, "codigo": "A09", "x": 434, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:38:00Z" },
+    { "id": 10, "nivel_id": 1, "codigo": "A10", "x": 482, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "sin_datos", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T06:41:00Z" },
+
+    { "id": 11, "nivel_id": 1, "codigo": "B01", "x": 50,  "y": 240, "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:18:00Z" },
+    { "id": 12, "nivel_id": 1, "codigo": "B02", "x": 98,  "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:33:00Z" },
+    { "id": 13, "nivel_id": 1, "codigo": "B03", "x": 146, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:05:00Z" },
+    { "id": 14, "nivel_id": 1, "codigo": "B04", "x": 194, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:29:00Z" },
+    { "id": 15, "nivel_id": 1, "codigo": "B05", "x": 242, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:11:00Z" },
+    { "id": 16, "nivel_id": 1, "codigo": "B06", "x": 290, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:48:00Z" },
+    { "id": 17, "nivel_id": 1, "codigo": "B07", "x": 338, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:56:00Z" },
+    { "id": 18, "nivel_id": 1, "codigo": "B08", "x": 386, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "sin_datos", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T05:57:00Z" },
+    { "id": 19, "nivel_id": 1, "codigo": "B09", "x": 434, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:24:00Z" },
+    { "id": 20, "nivel_id": 1, "codigo": "B10", "x": 482, "y": 240, "ancho": 40, "alto": 80, "tipo": "carga",        "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:07:00Z" },
+
+    { "id": 21, "nivel_id": 1, "codigo": "C01", "x": 50,  "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:21:00Z" },
+    { "id": 22, "nivel_id": 1, "codigo": "C02", "x": 98,  "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:16:00Z" },
+    { "id": 23, "nivel_id": 1, "codigo": "C03", "x": 146, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:29:00Z" },
+    { "id": 24, "nivel_id": 1, "codigo": "C04", "x": 194, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:44:00Z" },
+    { "id": 25, "nivel_id": 1, "codigo": "C05", "x": 242, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:33:00Z" },
+    { "id": 26, "nivel_id": 1, "codigo": "C06", "x": 290, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:09:00Z" },
+    { "id": 27, "nivel_id": 1, "codigo": "C07", "x": 338, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "reservado", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T06:50:00Z" },
+    { "id": 28, "nivel_id": 1, "codigo": "C08", "x": 386, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:02:00Z" },
+    { "id": 29, "nivel_id": 1, "codigo": "C09", "x": 434, "y": 325, "ancho": 40, "alto": 80, "tipo": "moto",         "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:01:00Z" },
+    { "id": 30, "nivel_id": 1, "codigo": "C10", "x": 482, "y": 325, "ancho": 40, "alto": 80, "tipo": "moto",         "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:22:00Z" },
+
+    { "id": 51, "nivel_id": 3, "codigo": "A01", "x": 50,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:12:00Z" },
+    { "id": 52, "nivel_id": 3, "codigo": "A02", "x": 98,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:28:00Z" },
+    { "id": 53, "nivel_id": 3, "codigo": "A03", "x": 146, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:15:00Z" },
+    { "id": 54, "nivel_id": 3, "codigo": "A04", "x": 194, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:26:00Z" },
+    { "id": 55, "nivel_id": 3, "codigo": "A05", "x": 242, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:04:00Z" },
+    { "id": 56, "nivel_id": 3, "codigo": "A06", "x": 290, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:58:00Z" },
+    { "id": 57, "nivel_id": 3, "codigo": "A07", "x": 338, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:21:00Z" },
+    { "id": 58, "nivel_id": 3, "codigo": "A08", "x": 386, "y": 40,  "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "sin_datos", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T04:39:00Z" },
+
+    { "id": 59, "nivel_id": 3, "codigo": "B01", "x": 50,  "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:17:00Z" },
+    { "id": 60, "nivel_id": 3, "codigo": "B02", "x": 98,  "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:25:00Z" },
+    { "id": 61, "nivel_id": 3, "codigo": "B03", "x": 146, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:11:00Z" },
+    { "id": 62, "nivel_id": 3, "codigo": "B04", "x": 194, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:06:00Z" },
+    { "id": 63, "nivel_id": 3, "codigo": "B05", "x": 242, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:49:00Z" },
+    { "id": 64, "nivel_id": 3, "codigo": "B06", "x": 290, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:13:00Z" },
+    { "id": 65, "nivel_id": 3, "codigo": "B07", "x": 338, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "reservado", "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T07:09:00Z" },
+    { "id": 66, "nivel_id": 3, "codigo": "B08", "x": 386, "y": 240, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:32:00Z" },
+
+    { "id": 67, "nivel_id": 3, "codigo": "C01", "x": 50,  "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:03:00Z" },
+    { "id": 68, "nivel_id": 3, "codigo": "C02", "x": 98,  "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "ocupado",   "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T06:34:00Z" },
+    { "id": 69, "nivel_id": 3, "codigo": "C03", "x": 146, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:10:00Z" },
+    { "id": 70, "nivel_id": 3, "codigo": "C04", "x": 194, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:55:00Z" },
+    { "id": 71, "nivel_id": 3, "codigo": "C05", "x": 242, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:19:00Z" },
+    { "id": 72, "nivel_id": 3, "codigo": "C06", "x": 290, "y": 325, "ancho": 40, "alto": 80, "tipo": "normal",       "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T08:41:00Z" },
+    { "id": 73, "nivel_id": 3, "codigo": "C07", "x": 338, "y": 325, "ancho": 40, "alto": 80, "tipo": "moto",         "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:08:00Z" },
+    { "id": 74, "nivel_id": 3, "codigo": "C08", "x": 386, "y": 325, "ancho": 40, "alto": 80, "tipo": "moto",         "estado": "libre",     "autorizacion": "no_aplica",      "actualizado_en": "2026-08-11T09:00:00Z" }
+  ]
+}

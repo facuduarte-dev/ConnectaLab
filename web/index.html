@@ -1,40 +1,63 @@
-  <!-- Iniciar en LOCALHOST; DE NO SER ASI JS RECHAZA LA CONEXION-->
-
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ConectaLAB — Mapa de plazas</title>
+  <title>ConectaLAB — Plano del nivel</title>
 
-  <!-- El CSS de Leaflet va ANTES que el nuestro, para poder pisarle estilos -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- Servir por HTTP (npx serve web), no abrir el archivo directo: con
+       file:// el navegador bloquea el fetch del JSON y el plano queda vacio. -->
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
   <header class="barra">
-    <h1>Gestion de parking</h1>
-    <p class="subtitulo">Estado de plazas de estacionamiento — Montevideo</p>
+    <h1>ConectaLAB</h1>
+    <p class="subtitulo">Estado de plazas en tiempo real — estacionamientos privados</p>
   </header>
 
-  <!-- Leaflet necesita un contenedor con altura definida. Si el div tiene
-       altura 0 el mapa se inicializa igual pero no se ve nada: es el error
-       numero uno cuando "el mapa no aparece". -->
-  <div id="mapa"></div>
+  <main class="contenido">
 
-  <div class="leyenda">
-    <span><i class="punto libre"></i>Libre</span>
-    <span><i class="punto ocupado"></i>Ocupado</span>
-    <span><i class="punto reservado"></i>Reservado</span>
-    <span><i class="punto sin_datos"></i>Sin datos</span>
-    <span><i class="punto discapacidad"></i>Plaza de discapacidad</span>
-  </div>
+    <!-- Un plano chico por nivel. Cada uno es un <button> de verdad: asi el
+         teclado y los lectores de pantalla lo tratan como lo que es sin que
+         haya que reimplementar Tab, Enter y el foco a mano. -->
+    <nav class="niveles" aria-label="Niveles del estacionamiento">
+      <h2>Niveles</h2>
+      <ul id="lista-niveles" class="lista-niveles"></ul>
+    </nav>
 
-  <!-- Leaflet primero, despues nuestro codigo, que depende de el -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <section class="panel">
+      <div class="encabezado-nivel">
+        <h2 id="nombre-nivel">Cargando nivel…</h2>
+        <ul id="resumen" class="resumen"></ul>
+      </div>
+
+      <!-- El SVG lo dibuja plano.js con las dimensiones que trae el nivel: el
+           plano de cada nivel tiene su propio tamano y no se puede fijar aca. -->
+      <div id="plano" class="plano"></div>
+
+      <ul class="leyenda">
+        <li><i class="muestra estado-libre"></i>Libre</li>
+        <li><i class="muestra estado-ocupado"></i>Ocupado</li>
+        <li><i class="muestra estado-reservado"></i>Reservado</li>
+        <li><i class="muestra estado-sin_datos"></i>Sin datos</li>
+        <li><i class="muestra tipo-discapacidad"></i>Plaza de discapacidad</li>
+      </ul>
+    </section>
+
+    <aside id="detalle" class="detalle">
+      <h2>Detalle</h2>
+      <p class="vacio">Seleccione una plaza del plano para ver su detalle.</p>
+    </aside>
+
+  </main>
+
+  <footer class="pie">
+    Fase 2 — plano estático con datos de demostración. Los estados todavía no
+    provienen de sensores.
+  </footer>
+
   <script src="js/api.js"></script>
-  <script src="js/mapa.js"></script>
+  <script src="js/plano.js"></script>
 </body>
 </html>
