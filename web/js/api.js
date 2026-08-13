@@ -10,7 +10,7 @@
 const API = {
   // 'demo' -> lee datos/plazas-demo.json
   // 'real' -> pega contra el backend Express
-  MODO: 'demo',
+  MODO: 'real',
 
   URL_BASE: 'http://localhost:3000/api',
   ARCHIVO_DEMO: 'datos/plazas-demo.json',
