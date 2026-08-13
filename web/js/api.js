@@ -41,6 +41,34 @@ const API = {
     return this._pedir(`${this.URL_BASE}/plazas?nivel_id=${nivelId}`);
   },
 
+  
+  /**
+   * Cambia el estado de una plaza. Requiere sesion iniciada: el token va en el
+   * header. No existe en modo demo —el JSON es de solo lectura— asi que falla
+   * claro en vez de simular un exito que nunca ocurrio.
+   */
+  async cambiarEstado(plazaId, estado, token) {
+    if (this.MODO === 'demo') {
+      throw new Error('El modo demo es de solo lectura');
+    }
+
+    const respuesta = await fetch(`${this.URL_BASE}/plazas/${plazaId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ estado })
+    });
+
+    if (!respuesta.ok) {
+      const detalle = await respuesta.json().catch(() => ({}));
+      throw new Error(detalle.error ?? `HTTP ${respuesta.status}`);
+    }
+
+    return respuesta.json();
+  },
+
   /**
    * Referencias del plano: rampa, acceso peatonal, camara de entrada.
    * Son decoracion para que el plano se lea como un parking y no como una

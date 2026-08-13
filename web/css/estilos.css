@@ -335,3 +335,11 @@ body {
   font-size: 0.78rem;
   color: #6b7280;
 }
+
+/* Panel de administracion */
+#tabla-plazas { width: 100%; border-collapse: collapse; }
+#tabla-plazas th,
+#tabla-plazas td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+#tabla-plazas th { font-weight: 600; }
+#form-login { display: grid; gap: 0.5rem; max-width: 20rem; }
+.ok { color: #2a6; }

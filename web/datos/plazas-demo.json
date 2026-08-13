@@ -31,18 +31,6 @@
     }
   ],
 
-  "referencias": [
-    { "nivel_id": 2, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
-    { "nivel_id": 2, "tipo": "camara", "x": 30,  "y": 340, "ancho": 190, "alto": 28, "etiqueta": "Barrera y cámara de entrada" },
-    { "nivel_id": 2, "tipo": "rampa",  "x": 380, "y": 330, "ancho": 200, "alto": 70, "etiqueta": "Rampa al subsuelo 1" },
-
-    { "nivel_id": 1, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
-    { "nivel_id": 1, "tipo": "rampa",  "x": 0,   "y": 440, "ancho": 190, "alto": 80, "etiqueta": "Rampa a planta baja y subsuelo 2" },
-
-    { "nivel_id": 3, "tipo": "acceso", "x": 0,   "y": 0,   "ancho": 160, "alto": 30, "etiqueta": "Acceso peatonal / ascensores" },
-    { "nivel_id": 3, "tipo": "rampa",  "x": 0,   "y": 440, "ancho": 180, "alto": 80, "etiqueta": "Rampa al subsuelo 1" }
-  ],
-
   "plazas": [
     { "id": 31, "nivel_id": 2, "codigo": "A01", "x": 50,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "autorizado",    "actualizado_en": "2026-08-11T08:52:00Z" },
     { "id": 32, "nivel_id": 2, "codigo": "A02", "x": 98,  "y": 40,  "ancho": 40, "alto": 80, "tipo": "discapacidad", "estado": "ocupado",   "autorizacion": "no_autorizado", "actualizado_en": "2026-08-11T09:27:00Z" },

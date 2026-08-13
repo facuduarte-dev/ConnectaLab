@@ -709,7 +709,7 @@ Completar `.env` con las credenciales de Supabase. La API queda en
 ### Sitio web
 
 ```bash
-npx serve web
+npx serve -l 5173 web 
 ```
 
 Tiene que servirse por HTTP, no abrirse como archivo: con `file://` el navegador
