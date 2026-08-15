@@ -1,9 +1,9 @@
 :root {
   --libre:        #2e7d32;
   --ocupado:      #c62828;
-  --reservado:    #1565c0;
+  --reservado:    #6f1281;
   --sin_datos:    #9e9e9e;
-  --discapacidad: #6a1b9a;
+  --discapacidad: #1565c0;
 
   --piso:         #e9ecef;
   --linea:        #c4c9d0;
@@ -343,3 +343,41 @@ body {
 #tabla-plazas th { font-weight: 600; }
 #form-login { display: grid; gap: 0.5rem; max-width: 20rem; }
 .ok { color: #2a6; }
+
+/* --- tiempo real --- */
+
+.conexion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.conexion::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--sin_datos);
+}
+
+.conexion[data-estado="vivo"]::before       { background: var(--libre); }
+.conexion[data-estado="caido"]::before      { background: var(--ocupado); }
+.conexion[data-estado="conectando"]::before { background: #e0a800; }
+
+/* Parpadeo de la plaza que acaba de cambiar. En un plano de treinta
+   rectangulos, un cambio de color remoto pasa desapercibido si no se senala. */
+@keyframes destacar {
+  0%   { stroke: #111; stroke-width: 7; }
+  100% { stroke: #fff; stroke-width: 2; }
+}
+
+.plaza.destacada rect { animation: destacar 1s ease-out; }
+
+/* Quien pidio menos movimiento no quiere un parpadeo cada vez que entra un
+   auto. El cambio de color sigue estando: no se pierde informacion. */
+@media (prefers-reduced-motion: reduce) {
+  .plaza.destacada rect { animation: none; }
+}

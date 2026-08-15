@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ConectaLAB — Plano del nivel</title>
+  <title>ParkEx — Plano del nivel</title>
 
   <!-- Servir por HTTP (npx serve web), no abrir el archivo directo: con
        file:// el navegador bloquea el fetch del JSON y el plano queda vacio. -->
@@ -12,7 +12,7 @@
 <body>
 
   <header class="barra">
-    <h1>ConectaLAB</h1>
+    <h1>ParkEx</h1>
     <p class="subtitulo">Estado de plazas en tiempo real — estacionamientos privados</p>
   </header>
 
@@ -27,8 +27,11 @@
     </nav>
 
     <section class="panel">
-      <div class="encabezado-nivel">
+            <div class="encabezado-nivel">
         <h2 id="nombre-nivel">Cargando nivel…</h2>
+        <!-- Un plano que dejo de actualizarse se ve igual que uno donde no paso
+             nada. Este punto es la unica forma de notar la diferencia. -->
+        <p id="conexion" class="conexion" data-estado="conectando" role="status">Conectando…</p>
         <ul id="resumen" class="resumen"></ul>
       </div>
 
@@ -52,12 +55,11 @@
 
   </main>
 
-  <footer class="pie">
-    Fase 2 — plano estático con datos de demostración. Los estados todavía no
-    provienen de sensores.
+    <footer class="pie">
+    Fase 5 — el plano se actualiza solo. Los estados todavía provienen del panel
+    manual, no de sensores.
   </footer>
 
-  <script src="js/api.js"></script>
-  <script src="js/plano.js"></script>
+    <script type="module" src="js/plano.js"></script>
 </body>
 </html>

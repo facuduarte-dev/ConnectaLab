@@ -1,5 +1,5 @@
 /*
- * ConectaLAB - Sensor de ocupacion de una plaza
+ * ParkEx - Sensor de ocupacion de una plaza
  *
  * Mide la distancia con un HC-SR04 montado en el cielorraso, apuntando hacia
  * abajo y centrado sobre la plaza (README 7.2), y reporta a la API cada vez que

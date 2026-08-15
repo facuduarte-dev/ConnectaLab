@@ -1,4 +1,4 @@
-# ConectaLAB
+# ParkEx
 
 Plataforma de gestión inteligente de plazas para **estacionamientos privados**.
 Muestra en tiempo real, sobre el plano del parking, qué plazas están libres,
@@ -127,6 +127,59 @@ Si el servicio de lectura está caído, el plano sigue mostrando plazas libres y
 ocupadas con normalidad, y las plazas de discapacidad quedan en estado
 `no_verificable`. Esta decisión evita que una falla en la parte más compleja del
 proyecto tire abajo todo lo demás.
+
+### 2.4 Cómo llega el cambio al navegador
+
+El plano no consulta cada tantos segundos si algo cambió: se entera en el
+momento. La pieza es **Supabase Realtime**, que replica los cambios de la tabla
+`plazas` a los navegadores conectados por WebSocket.
+
+```
+Panel de administración ──┐
+Sensor (ESP32, fase 6) ───┼──▶ API ──▶ UPDATE plazas ──┐
+Editor SQL, migraciones ──┘                            │
+                                                       ▼
+                                          replicación (WAL)
+                                                       │
+                                                       ▼
+                                           Supabase Realtime
+                                                       │
+                                    WebSocket           │
+        Plano ◀────────────────────────────────────────┤
+        Panel ◀────────────────────────────────────────┘
+```
+
+Lo importante es **qué se escucha: la tabla, no el endpoint**. Cualquier cosa
+que modifique `plazas` dispara el aviso —el panel, un `update` a mano en el
+editor SQL, el sensor de la fase 6, el lector de la fase 7— sin que haya que
+tocar una línea del frontend. Si en cambio el aviso lo emitiera Express, un
+cambio que no pasara por Express sería invisible, y la fase 6 obligaría a
+reescribir esta capa.
+
+Quedan dos consecuencias que el código tiene que resolver y no son obvias:
+
+- **Hacen falta dos cosas, no una.** La tabla tiene que estar en la publicación
+  `supabase_realtime` *y* el rol `anon` tiene que poder leer la fila: antes de
+  mandar un cambio, Realtime se hace pasar por el suscriptor y comprueba si
+  podría verlo con un `select`. Si falta cualquiera de las dos, el canal se
+  conecta igual, el indicador se pone en verde y no llega nada nunca. Las dos
+  están en `db/politicas.sql`.
+- **Realtime no reenvía lo que uno se perdió.** No hay historial: los cambios
+  ocurridos mientras el socket estuvo caído se pierden. Por eso, cada vez que el
+  canal se reabre, el frontend vuelve a leer todo. Sin eso, un corte de red de
+  un minuto deja el plano mostrando el estado del momento del corte, sin
+  ninguna señal de que está mintiendo.
+
+Las lecturas iniciales siguen yendo por la API en Express, que es la única con
+la clave de servicio; el navegador usa la clave pública **sólo** para el canal
+de tiempo real y para el inicio de sesión.
+
+Se descartaron dos alternativas. Consultar la API cada pocos segundos
+(*polling*) funciona, pero es una petición por nivel y por pestaña abierta y aun
+así el cambio tarda lo que dure el intervalo. Un WebSocket propio en Express
+obligaría a escribir a mano el servidor, la reconexión y el *heartbeat*, y
+tendría el problema de fondo ya descrito: sólo se enteraría de lo que pasa por
+Express.
 
 ---
 
@@ -408,6 +461,10 @@ que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
 | `POST` | `/api/vehiculos` | Alta de un vehículo autorizado en el padrón |
 | `DELETE` | `/api/vehiculos/:id` | Baja de un vehículo del padrón |
 
+**No hay endpoint de tiempo real.** Todo lo que el navegador *lee* pasa por esta
+API; los avisos de cambio llegan por el canal de Supabase Realtime, directo
+desde la base y sin intervención de Express. El porqué está en la sección 2.4.
+
 ---
 
 ## 6. Seguridad y datos personales
@@ -446,9 +503,13 @@ una silla de ruedas. El diseño lo trata como tal:
 - **La clave de servicio de Supabase vive sólo en el backend.** Nunca en el
   firmware ni en el JavaScript del navegador.
 - **El frontend usa la clave pública con Row Level Security activado.** Las
-  políticas permiten leer `plazas` y `niveles`; `lecturas` y
-  `vehiculos_autorizados` no tienen ninguna política, así que la clave pública
-  no las alcanza jamás.
+  políticas permiten leer `plazas`, `niveles` y `estacionamientos`; `eventos`,
+  `dispositivos`, `lecturas`, `vehiculos_autorizados` y `alertas` tienen RLS
+  activado y **ninguna** política, así que la clave pública no las alcanza
+  jamás. Está en `db/politicas.sql`. Habilitar RLS sin política no es lo mismo
+  que dejar RLS apagado: apagado, los permisos por defecto de Supabase le dan a
+  `anon` acceso de lectura y escritura a todo el esquema `public`, y la clave
+  pública está —por diseño— a la vista en el JavaScript del navegador.
 - **Cada dispositivo tiene su propio token**, guardado hasheado. Si un ESP32 es
   manipulado físicamente se revoca ese token sin afectar al resto.
 - **Los endpoints de dispositivo tienen límite de tasa.** Un sensor con falla no
@@ -648,7 +709,8 @@ ConnectaLab/
 │   ├── admin.html                Panel de administración
 │   ├── css/estilos.css
 │   ├── js/
-│   │   ├── api.js                Capa de datos (demo o API real)
+│   │   ├── supabase.js           Cliente de Supabase con la clave pública
+│   │   ├── api.js                Capa de datos: lectura y canal de tiempo real
 │   │   ├── plano.js              Plano SVG y selector de niveles
 │   │   └── admin.js
 │   └── datos/plazas-demo.json    Datos de fase 2, sin backend
@@ -671,7 +733,9 @@ ConnectaLab/
 │       ├── sensor_plaza.ino
 │       └── credenciales.example.h
 ├── db/
-│   ├── esquema.sql
+│   ├── esquema.sql               Tablas y tipos
+│   ├── funciones.sql             registrar_evento(): evento + estado en una operación
+│   ├── politicas.sql             RLS y publicación de tiempo real
 │   └── datos_prueba.sql
 ├── Tinkercad/                    Diagramas del circuito
 ├── README.md
@@ -682,8 +746,9 @@ Los tres archivos con secretos —`api/.env`, `vision/config.json` y
 `firmware/sensor_plaza/credenciales.h`— están en `.gitignore` y se crean
 copiando su respectivo `.example`.
 
-Al día de hoy sólo `web/` tiene archivos reales; el resto del árbol es la
-estructura a la que apunta el proyecto y se va llenando fase por fase.
+Al día de hoy tienen archivos reales `web/`, `api/`, `db/` y el firmware del
+sensor; `vision/` y el resto del árbol son la estructura a la que apunta el
+proyecto y se va llenando fase por fase.
 
 ---
 
@@ -692,7 +757,30 @@ estructura a la que apunta el proyecto y se va llenando fase por fase.
 ### Base de datos
 
 Crear un proyecto en [supabase.com](https://supabase.com) y correr, desde el
-editor SQL, primero `db/esquema.sql` y después `db/datos_prueba.sql`.
+editor SQL y **en este orden**, los cuatro archivos de `db/`:
+
+| # | Archivo | Qué hace |
+|---|---|---|
+| 1 | `esquema.sql` | Tablas y tipos |
+| 2 | `funciones.sql` | `registrar_evento()`, que usa el `PATCH` de la API |
+| 3 | `datos_prueba.sql` | Un estacionamiento con tres niveles y sus plazas |
+| 4 | `politicas.sql` | RLS y publicación de tiempo real |
+
+El orden importa: `funciones.sql` usa los tipos que crea `esquema.sql`, y
+`politicas.sql` cierra el acceso público a las tablas sensibles. Correr los tres
+primeros y saltear el cuarto deja la base abierta a cualquiera que tenga la
+clave pública, que está a la vista en el navegador. `politicas.sql` se puede
+volver a correr cuantas veces haga falta sin romper nada.
+
+Para comprobar que quedó bien:
+
+```sql
+select tablename, rowsecurity from pg_tables where schemaname = 'public' order by tablename;
+select tablename from pg_publication_tables where pubname = 'supabase_realtime';
+```
+
+Todas las tablas tienen que aparecer con `rowsecurity` en `true`, y la segunda
+consulta tiene que devolver `plazas`.
 
 ### Backend
 
@@ -713,8 +801,14 @@ npx serve -l 5173 web
 ```
 
 Tiene que servirse por HTTP, no abrirse como archivo: con `file://` el navegador
-bloquea el `fetch` del JSON. La fuente de datos se controla con la constante
-`MODO` en `web/js/api.js`.
+bloquea el `fetch` del JSON y además rechaza los módulos ES, con lo cual no
+carga ni una línea de JavaScript. La fuente de datos se controla con la
+constante `MODO` en `web/js/api.js`.
+
+Los tres archivos de `web/js/` son módulos ES y se cargan encadenados desde un
+único `<script type="module">` por página: `plano.js` (o `admin.js`) importa
+`api.js`, que importa `supabase.js`. Por eso el HTML no lleva una etiqueta por
+archivo.
 
 ### Lector de matrículas (opcional)
 
@@ -739,9 +833,9 @@ hardware**: un retraso en la compra o una falla del ESP32 no bloquea el avance.
 |---|---|---|---|---|
 | 1 | Repositorio | Estructura, esquema SQL, documentación | No | Hecho |
 | 2 | Plano estático | Plano SVG con selector de niveles y plazas de colores desde un JSON local | No | Hecho |
-| 3 | Base de datos y API | Tablas en Supabase, `GET /api/plazas`, el plano consume la API | No | Pendiente |
-| 4 | Autenticación y panel | Login con Supabase Auth, cambio manual de estados | No | Pendiente |
-| 5 | Tiempo real | El plano se repinta solo al cambiar un estado | No | Pendiente |
+| 3 | Base de datos y API | Tablas en Supabase, `GET /api/plazas`, el plano consume la API | No | Hecho |
+| 4 | Autenticación y panel | Login con Supabase Auth, cambio manual de estados | No | Hecho |
+| 5 | Tiempo real | El plano se repinta solo al cambiar un estado | No | Hecho |
 | 6 | Hardware | ESP32 + HC-SR04 reportando una plaza real | Sí | Pendiente |
 | 7 | Cámara en la plaza | La cámara se dispara con el sensor y el lector Java devuelve el hash | Sí | Pendiente |
 | 8 | Padrón y alertas | Padrón de autorizados, resolución de la autorización y bandeja de revisión | Sí | Pendiente |
@@ -754,9 +848,19 @@ El criterio de aceptación de la fase 3 conviene tenerlo escrito: se cambia la
 constante `MODO` de `demo` a `real` y **la página tiene que verse idéntica**. Si
 eso pasa, la separación entre la capa de datos y el plano era correcta.
 
-Al terminar la fase 5 el sistema es demostrable de punta a punta: se cambia un
-estado en el panel y el plano de otra computadora se actualiza al instante. La
-fase 6 sólo reemplaza el clic manual por un sensor real.
+Con la fase 5 terminada el sistema **ya es demostrable de punta a punta**: se
+cambia un estado en el panel y el plano de otra computadora se actualiza al
+instante, sin recargar. La fase 6 sólo reemplaza el clic manual por un sensor
+real: como lo que se escucha es la tabla y no la API (sección 2.4), el frontend
+no se entera de la diferencia y no hay que tocarlo.
+
+El criterio de aceptación de la fase 5 tiene dos partes, y la segunda es la que
+cuesta: (a) un `update` a `plazas` hecho desde **fuera** del panel —por ejemplo
+desde el editor SQL— repinta el plano igual; y (b) después de cortar la red,
+cambiar un estado y volver a conectar, el plano queda mostrando el valor
+correcto. Lo primero prueba que se escucha la tabla; lo segundo, que la
+relectura al reconectar funciona. Sin (b) el sistema anda en la demostración y
+miente en producción.
 
 La fase 8 depende de la 7. El riesgo que queda en ambas ya no es de software
 sino de instalación: dónde se monta la cámara y si la chapa queda visible.
@@ -769,11 +873,12 @@ sino de instalación: dónde se monta la cámara y si la chapa queda visible.
 |---|---|---|
 | El ESP32 no llega a tiempo o se daña | Alto | Fases 1-5 no lo requieren; el panel manual simula el sensor. Comprar una placa de repuesto |
 | El OCR lee mal y se marca a alguien como infractor | Alto | Umbral de 0,80; validación de formato; se exige la lectura repetida en varias fotos; `no_verificable` separado de `no_autorizado`; revisión humana obligatoria |
-| Filtración de la base con el historial de lecturas | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; tablas sin política RLS |
+| Filtración de la base con el historial de lecturas | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; RLS **activado** y sin ninguna política en `lecturas`, `vehiculos_autorizados`, `alertas`, `eventos` y `dispositivos`, de modo que la clave pública no devuelve una sola fila (`db/politicas.sql`) |
 | La cámara no consigue un ángulo con la chapa visible | Medio | Montaje al frente de la plaza y a la altura de la matrícula; probar con el auto de frente y de culata; sin lectura no hay alerta, queda en `no_verificable` |
 | La cámara capta a personas bajando del auto | Medio | Se dispara sólo por evento del sensor; la imagen se procesa en memoria y no se guarda nunca |
 | Una cámara por plaza reservada encarece la instalación | Bajo | Son tres o cuatro por parking, no una por plaza; cámaras IP sobre la red existente y un solo proceso que las atiende |
 | Un sensor por plaza no escala en costo | Medio | Multiplexar 8-12 sensores por ESP32; para el prototipo, una plaza real y el resto simulado |
+| Se corta el canal de tiempo real y el plano muestra datos viejos sin avisar | Medio | Indicador de conexión visible en el encabezado; al reabrirse el canal el frontend vuelve a leer todo, porque Realtime no reenvía lo perdido |
 
 ---
 

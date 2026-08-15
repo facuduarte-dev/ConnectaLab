@@ -1,3 +1,4 @@
+import { supabase } from './supabase.js';
 /**
  * Capa de datos.
  *
@@ -7,7 +8,7 @@
  * obligaria a tocar el plano. Asi solo se cambia la constante MODO.
  */
 
-const API = {
+export const API = {
   // 'demo' -> lee datos/plazas-demo.json
   // 'real' -> pega contra el backend Express
   MODO: 'real',
@@ -68,7 +69,61 @@ const API = {
 
     return respuesta.json();
   },
+  /**
+   * Avisa cada vez que cambia una plaza en la base.
+   *
+   * Va aca por la misma razon que el resto de la capa: el plano no tiene que
+   * saber de donde salen los datos ni como llegan. En modo demo no hay nada que
+   * escuchar —un JSON no cambia solo— y devolver una funcion vacia deja que el
+   * plano se escriba una sola vez para los dos modos.
+   *
+   * Escuchamos la TABLA, no la API. Cualquier cosa que toque plazas dispara el
+   * evento: el panel, un update a mano en el editor SQL, o el sensor de la fase
+   * 6. Si escucharamos el endpoint, un cambio que no pasara por Express seria
+   * invisible.
+   *
+   *   alCambiar(plaza)  una plaza cambio: llega la fila entera, ya actualizada
+   *   alReconectar()    el canal volvio despues de una caida: hay que releer todo
+   *   alEstado(estado)  para mostrar el indicador de conexion
+   *
+   * Devuelve una funcion para cortar la suscripcion.
+   */
+  
+  suscribirsePlazas({ alCambiar, alReconectar, alEstado = () => {} }) {
+    if (this.MODO === 'demo') {
+      alEstado('demo');
+      return () => {};
+    }
 
+    // El primer SUBSCRIBED es la apertura normal del canal y no hay nada que
+    // resincronizar: el plano acaba de cargar los datos. Del segundo en
+    // adelante es una REconexion, y ahi si.
+    let abiertoAntes = false;
+
+    const canal = supabase
+      .channel('plazas-en-vivo')   // cualquier nombre menos 'realtime'
+      .on(
+        'postgres_changes',
+        // Solo UPDATE. Una plaza nueva o borrada es un cambio de la planta
+        // fisica del parking, no algo que ocurra mientras alguien mira el
+        // plano: para eso alcanza con recargar la pagina.
+        { event: 'UPDATE', schema: 'public', table: 'plazas' },
+        (mensaje) => alCambiar(mensaje.new)
+      )
+      .subscribe((estado) => {
+        alEstado(estado);
+        if (estado !== 'SUBSCRIBED') return;
+
+        // Realtime no guarda historial: los cambios que ocurrieron mientras el
+        // socket estuvo caido NO se reenvian al reconectar. Sin esta relectura
+        // el plano se queda mostrando el estado del momento del corte y no hay
+        // forma de que se entere.
+        if (abiertoAntes) alReconectar();
+        abiertoAntes = true;
+      });
+
+    return () => supabase.removeChannel(canal);
+  },
   /**
    * Referencias del plano: rampa, acceso peatonal, camara de entrada.
    * Son decoracion para que el plano se lea como un parking y no como una

@@ -1,4 +1,4 @@
--- ConectaLAB — Datos de prueba
+-- ParkEx — Datos de prueba
 -- Correr DESPUES de esquema.sql, en el editor SQL de Supabase.
 
 -- 1. Estacionamiento

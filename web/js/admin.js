@@ -1,11 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { supabase } from './supabase.js';
+import { API } from './api.js';
 
-// Publicas por diseno: la anon key no puede hacer nada que las politicas RLS
-// no permitan. La service_role NUNCA va en esta carpeta.
-const SUPABASE_URL = 'https://wudfiaqlltjrfasiwnnp.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1ZGZpYXFsbHRqcmZhc2l3bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1Mzk2NDQsImV4cCI6MjEwMjExNTY0NH0.01tG1S7mVEOM1Ans1c6F0QVCrI1t8dpaVK6pOO0kTzE';
+// Fila de la tabla por id de plaza, para poder actualizarla cuando el cambio lo
+// hizo otra persona. Se rearma entera en cada carga del panel.
+const filasPorPlaza = new Map();
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Se guarda para poder cortar el canal al cerrar sesion y para no suscribirse
+// dos veces si mostrarPanel() se llama de nuevo.
+let cortarCanal = null;
 
 const ESTADOS = ['libre', 'ocupado', 'reservado', 'sin_datos'];
 
@@ -53,6 +55,9 @@ document.getElementById('form-login').addEventListener('submit', async (evento) 
 });
 
 botonSalir.addEventListener('click', async () => {
+  cortarCanal?.();
+  cortarCanal = null;
+
   await supabase.auth.signOut();
   seccionPanel.hidden = true;
   botonSalir.hidden = true;
@@ -65,6 +70,8 @@ async function mostrarPanel() {
   seccionLogin.hidden = true;
   seccionPanel.hidden = false;
   botonSalir.hidden = false;
+
+  filasPorPlaza.clear();
 
   try {
     const niveles = await API.obtenerNiveles();
@@ -81,7 +88,35 @@ async function mostrarPanel() {
     avisar(`${filas.length} plazas cargadas.`);
   } catch (error) {
     avisar(`No se pudieron cargar las plazas: ${error.message}`, true);
+    return;
   }
+
+  // Una sola vez: mostrarPanel se vuelve a llamar al resincronizar y no hay que
+  // abrir un canal nuevo cada vez.
+  cortarCanal ??= API.suscribirsePlazas({
+    alCambiar: reflejarCambio,
+    alReconectar: mostrarPanel
+  });
+}
+
+/**
+ * Un cambio hecho desde otro lado: otra persona en otro panel, o —desde la fase
+ * 6— el sensor de la plaza. Si el panel no escuchara, dos administradores
+ * trabajando a la vez se pisarian sin enterarse.
+ */
+function reflejarCambio(plazaNueva) {
+  const fila = filasPorPlaza.get(Number(plazaNueva.id));
+  if (!fila) return;
+
+  Object.assign(fila.plaza, plazaNueva);
+
+  // El selector deshabilitado significa que hay un cambio propio en vuelo.
+  // Pisarlo ahora seria pelearle al usuario; cuando el PATCH termine, el valor
+  // va a coincidir igual.
+  if (fila.selector.disabled) return;
+
+  fila.selector.value = plazaNueva.estado;
+  fila.celdaAutorizacion.textContent = plazaNueva.autorizacion;
 }
 
 function construirFila({ nivel, plaza }) {
@@ -142,6 +177,7 @@ function construirFila({ nivel, plaza }) {
     celda(plaza.autorizacion),
     celdaEstado
   );
+  filasPorPlaza.set(plaza.id, { plaza, selector, celdaAutorizacion: fila.children[3] });
 
   return fila;
 }
