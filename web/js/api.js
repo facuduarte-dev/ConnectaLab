@@ -1,4 +1,5 @@
-import { supabase } from './supabase.js';
+import { supabase, observarLatido } from './supabase.js';
+
 /**
  * Capa de datos.
  *
@@ -122,7 +123,41 @@ export const API = {
         abiertoAntes = true;
       });
 
-    return () => supabase.removeChannel(canal);
+    // --- deteccion de caida --------------------------------------------
+    //
+    // El estado del canal NO alcanza. Si la maquina se queda sin internet pero
+    // la interfaz de red sigue arriba, nadie cierra el socket: no llega ningun
+    // FIN, el navegador lo sigue considerando abierto y subscribe() nunca se
+    // entera. El indicador queda en verde mintiendo.
+    //
+    // Un indicador de conexion tiene que exigir senal de vida activa, no
+    // conformarse con que nadie le haya avisado lo contrario.
+
+    // 1. El navegador avisa al instante cuando se cae la interfaz de red. Es la
+    //    capa mas rapida y la menos confiable: navigator.onLine mira si hay red,
+    //    no si hay internet. Con el router prendido y el proveedor caido dice
+    //    que si.
+    const alPerderRed = () => alEstado('SIN_RED');
+    const alVolverRed = () => alEstado('CONECTANDO');
+
+    window.addEventListener('offline', alPerderRed);
+    window.addEventListener('online', alVolverRed);
+
+    // 2. El latido es la senal de vida de verdad, y la unica que detecta el caso
+    //    "hay WiFi pero no hay internet": el mensaje sale y no vuelve nunca.
+    //    Se exige ademas que el canal siga unido, porque un socket vivo con el
+    //    canal caido tampoco esta recibiendo cambios.
+    observarLatido((latido) => {
+      if (latido === 'ok' && canal.state === 'joined') alEstado('SUBSCRIBED');
+      if (latido === 'timeout' || latido === 'error')  alEstado('CHANNEL_ERROR');
+    });
+
+    return () => {
+      window.removeEventListener('offline', alPerderRed);
+      window.removeEventListener('online', alVolverRed);
+      observarLatido(() => {});
+      supabase.removeChannel(canal);
+    };
   },
   /**
    * Referencias del plano: rampa, acceso peatonal, camara de entrada.

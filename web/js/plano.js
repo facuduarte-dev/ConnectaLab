@@ -333,6 +333,8 @@ const TEXTO_CONEXION = {
   CHANNEL_ERROR: ['caido',      'Sin conexión en vivo'],
   TIMED_OUT:     ['caido',      'Sin conexión en vivo'],
   CLOSED:        ['caido',      'Desconectado'],
+  SIN_RED:       ['caido',      'Sin red'],
+  CONECTANDO:    ['conectando', 'Reconectando…'],
   demo:          ['demo',       'Datos de demostración']
 };
 
