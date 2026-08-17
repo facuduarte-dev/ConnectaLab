@@ -135,10 +135,12 @@ body {
 
 .nivel .libres { font-size: 0.72rem; color: #6b7280; }
 
+/* El ancho lo pone plano.js en porcentaje, para que los tres planos chicos
+   compartan escala. Aca solo queda el centrado del que sobra espacio. */
 .mini-svg {
   display: block;
-  width: 100%;
   height: auto;
+  margin: 0 auto;
 }
 
 /* En el plano chico las plazas no se pueden clickear: el que recibe el clic es
@@ -194,18 +196,17 @@ body {
 
 /* --- plano --- */
 
-.plano { display: flex; justify-content: center; }
-
-/* El viewBox fija la proporcion, asi que el alto sale solo del ancho. En una
-   pantalla ancha eso deja el plano mas alto que la ventana y obliga a
-   scrollear para ver la fila de abajo: el max-height lo evita. El dibujo se
-   centra solo dentro del hueco sobrante (preserveAspectRatio por defecto). */
-.plano-svg {
+/* No estira el SVG: el tamano lo fija plano.js con los atributos width y
+   height, porque la escala es compartida entre los tres niveles y el CSS no
+   tiene forma de saber cual es el mas ancho. Cuando el plano no entra, scrollea
+   este contenedor en horizontal y no la pagina entera. */
+.plano {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: calc(100vh - 15rem);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+.plano-svg { display: block; margin: 0 auto; }
 
 .piso {
   fill: var(--piso);
@@ -245,20 +246,23 @@ body {
   stroke-width: 3;
 }
 
+/* En unidades del viewBox. Con la escala minima de 1, estos numeros son
+   directamente pixeles de pantalla: antes el 11 se veia a 6 px porque el plano
+   se achicaba para entrar. */
 .plaza .codigo {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   fill: #fff;
   pointer-events: none;   /* el clic tiene que llegar al <g>, no al texto */
 }
 
 .plaza .marca {
-  font-size: 9px;
+  font-size: 11px;
   fill: #fff;
   pointer-events: none;
 }
 
-.plaza .marca-discapacidad { font-size: 15px; }
+.plaza .marca-discapacidad { font-size: 18px; }
 
 .plaza.estado-libre rect     { fill: var(--libre); }
 .plaza.estado-ocupado rect   { fill: var(--ocupado); }
@@ -381,3 +385,178 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .plaza.destacada rect { animation: none; }
 }
+
+/* --- botones ---------------------------------------------------------- */
+
+/* Hasta ahora la pagina no tenia ningun boton propio: los <button> eran los
+   planos chicos, que se dibujan como tarjetas. Reservar es la primera accion
+   de verdad y necesita verse como tal. Reusa el azul de la barra para no
+   sumar un color al conjunto. */
+.boton {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.boton-primario { background: var(--azul); color: #fff; }
+.boton-primario:hover:not(:disabled) { background: #10497e; }
+
+.boton-secundario { background: #fff; color: var(--texto); border-color: #e2e5ea; }
+.boton-secundario:hover { border-color: #c4c9d0; }
+
+.boton:disabled { opacity: 0.6; cursor: default; }
+
+.boton:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+
+/* En el panel de detalle es la unica accion, asi que ocupa todo el ancho: no
+   compite con nada y es facil de acertar con el pulgar. */
+.detalle .boton { width: 100%; margin-top: 0.9rem; }
+
+/* --- modal de reserva -------------------------------------------------- */
+
+.modal {
+  width: min(23rem, calc(100% - 2rem));
+  padding: 0;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--texto);
+  box-shadow: 0 10px 30px rgba(13, 59, 102, 0.18);
+}
+
+.modal::backdrop { background: rgba(13, 59, 102, 0.35); }
+
+.modal-cuerpo { padding: 1rem; }
+
+.modal h2 { margin: 0; font-size: 1rem; }
+
+.modal .donde { margin: 0.2rem 0 0.9rem; font-size: 0.83rem; color: #6b7280; }
+
+.modal-acciones { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.modal-acciones .boton { flex: 1; }
+
+.campo { display: grid; gap: 0.2rem; margin-bottom: 0.6rem; font-size: 0.78rem; color: #6b7280; }
+
+/* El 1rem no es estetico: por debajo de 16px, Safari de iOS hace zoom al
+   enfocar el campo y descoloca la pantalla justo cuando la persona esta
+   tratando de entrar. */
+.campo input {
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--texto);
+  border: 1px solid #e2e5ea;
+  border-radius: 5px;
+}
+
+.campo input:focus-visible { outline: 2px solid var(--azul); outline-offset: 1px; }
+
+.modal .aclaracion { margin: 0 0 0.7rem; font-size: 0.83rem; color: #6b7280; }
+
+/* Con quien se esta reservando. Va en verde tenue porque informa que un
+   requisito ya esta cumplido, no que haya algo que hacer. */
+.modal .sesion {
+  margin: 0 0 0.7rem;
+  padding: 0.4rem 0.6rem;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.exito {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+/* El error del modal necesita separacion de lo que viene abajo; el .error
+   suelto del plano no la necesitaba porque esta solo. */
+.modal .error { margin-bottom: 0.7rem; }
+
+/* --- ajustes para el telefono ------------------------------------------ */
+
+@media (max-width: 860px) {
+  /* En una sola columna todo se aprieta contra los bordes. */
+  .contenido { gap: 0.7rem; padding: 0.7rem; }
+
+  /* Objetivos de toque mas comodos con el telefono en la mano: el riel de
+     niveles es lo primero que se toca al entrar. */
+  .nivel { padding: 0.55rem; }
+
+  /* El detalle queda debajo del plano y plano.js lo trae a la vista al elegir
+     una plaza; este margen evita que quede pegado al borde superior. */
+  .detalle { scroll-margin-top: 0.7rem; }
+}
+
+/* --- panel: alta de pisos --- */
+
+.bloque { margin-bottom: 1.5rem; }
+.bloque h2 { font-size: 1rem; margin: 0 0 0.6rem; }
+
+#form-nivel {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 22rem;
+  margin-bottom: 1rem;
+}
+
+#form-nivel label { font-size: 0.78rem; color: #6b7280; margin-top: 0.4rem; }
+
+#form-nivel input {
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  border: 1px solid #e2e5ea;
+  border-radius: 5px;
+}
+
+#form-nivel input:focus-visible { outline: 2px solid var(--azul); outline-offset: 1px; }
+
+#form-nivel button {
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 5px;
+  background: var(--azul);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#form-nivel button:disabled { opacity: 0.6; cursor: default; }
+
+.vista-previa { margin: 0.5rem 0 0; font-size: 0.8rem; color: #6b7280; }
+
+.lista-pisos { margin: 0; padding: 0; list-style: none; max-width: 22rem; }
+
+.lista-pisos li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e5ea;
+  font-size: 0.88rem;
+}
+
+/* Rojo y en texto plano, no un boton lleno: es destructivo, no es la accion
+   principal de la fila y no tiene que competir con "Crear piso". */
+.borrar {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ocupado);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.borrar:hover:not(:disabled) { border-color: var(--ocupado); }
+.borrar:disabled { opacity: 0.6; cursor: default; }
