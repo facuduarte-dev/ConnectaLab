@@ -5,7 +5,7 @@
     {
       "id": 2,
       "estacionamiento_id": 1,
-      "estacionamiento": "Parking Ciudad Vieja",
+      "estacionamiento": "Parking Shopping Paysandú",
       "nombre": "Planta baja",
       "orden": 1,
       "ancho_plano": 580,
@@ -14,7 +14,7 @@
     {
       "id": 1,
       "estacionamiento_id": 1,
-      "estacionamiento": "Parking Ciudad Vieja",
+      "estacionamiento": "Parking Shopping Paysandú",
       "nombre": "Subsuelo 1",
       "orden": 2,
       "ancho_plano": 580,
@@ -23,7 +23,7 @@
     {
       "id": 3,
       "estacionamiento_id": 1,
-      "estacionamiento": "Parking Ciudad Vieja",
+      "estacionamiento": "Parking Shopping Paysandú",
       "nombre": "Subsuelo 2",
       "orden": 3,
       "ancho_plano": 480,

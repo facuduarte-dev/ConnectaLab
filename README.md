@@ -1,4 +1,4 @@
-# ParkEx
+# Parking Shopping Paysandú
 
 Plataforma de gestión inteligente de plazas para **estacionamientos privados**.
 Muestra en tiempo real, sobre el plano del parking, qué plazas están libres,
@@ -460,6 +460,8 @@ que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
 | `PATCH` | `/api/alertas/:id` | Marcar una alerta como revisada |
 | `POST` | `/api/vehiculos` | Alta de un vehículo autorizado en el padrón |
 | `DELETE` | `/api/vehiculos/:id` | Baja de un vehículo del padrón |
+| `POST` | `/api/niveles` | Alta de un piso con sus plazas generadas |
+| `DELETE` | `/api/niveles/:id` | Baja de un piso; 409 si tiene historial |
 
 **No hay endpoint de tiempo real.** Todo lo que el navegador *lee* pasa por esta
 API; los avisos de cambio llegan por el canal de Supabase Realtime, directo
@@ -716,6 +718,7 @@ ConnectaLab/
 │   └── datos/plazas-demo.json    Datos de fase 2, sin backend
 ├── api/                          Backend Node.js + Express
 │   ├── src/
+│   │   ├── plano/generar.js      Geometria de un nivel a partir de la cantidad de plazas
 │   │   ├── index.js
 │   │   ├── db.js                 Cliente de Supabase (clave de servicio)
 │   │   ├── rutas/                niveles, plazas, eventos, lecturas, vehiculos
