@@ -44,31 +44,31 @@ export const API = {
   },
 
   
-  /**
-   * Cambia el estado de una plaza. Requiere sesion iniciada: el token va en el
-   * header. No existe en modo demo —el JSON es de solo lectura— asi que falla
-   * claro en vez de simular un exito que nunca ocurrio.
+    /**
+   * Cambia el estado de una plaza. Requiere sesion iniciada.
    */
   async cambiarEstado(plazaId, estado, token) {
-    if (this.MODO === 'demo') {
-      throw new Error('El modo demo es de solo lectura');
-    }
+    return this._enviar('PATCH', `${this.URL_BASE}/plazas/${plazaId}`, token, { estado });
+  },
 
-    const respuesta = await fetch(`${this.URL_BASE}/plazas/${plazaId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ estado })
+  /**
+   * Crea un piso con sus plazas.
+   *
+   * Viaja la intencion, no la geometria: las coordenadas las calcula la API.
+   * Si este metodo mandara x e y, cualquier otro cliente tendria que saber
+   * dibujar un parking.
+   */
+  async crearNivel({ nombre, cantidad, porFila }, token) {
+    return this._enviar('POST', `${this.URL_BASE}/niveles`, token, {
+      nombre,
+      cantidad,
+      por_fila: porFila
     });
+  },
 
-    if (!respuesta.ok) {
-      const detalle = await respuesta.json().catch(() => ({}));
-      throw new Error(detalle.error ?? `HTTP ${respuesta.status}`);
-    }
-
-    return respuesta.json();
+  /** Borra un piso. La API rechaza con 409 si tiene historial. */
+  async borrarNivel(nivelId, token) {
+    return this._enviar('DELETE', `${this.URL_BASE}/niveles/${nivelId}`, token);
   },
   /**
    * Avisa cada vez que cambia una plaza en la base.
@@ -193,6 +193,39 @@ export const API = {
       });
     }
     return this._demo;
+  },
+
+    /**
+   * Peticion autenticada. La comparten los tres endpoints que escriben.
+   *
+   * El modo demo se corta aca y no en cada metodo: el JSON es de solo lectura
+   * y falla claro en vez de simular un exito que nunca ocurrio.
+   */
+  async _enviar(metodo, url, token, cuerpo = null) {
+    if (this.MODO === 'demo') {
+      throw new Error('El modo demo es de solo lectura');
+    }
+
+    const respuesta = await fetch(url, {
+      method: metodo,
+      headers: {
+        // Sin cuerpo no va Content-Type: un DELETE con Content-Type y sin body
+        // hace que algunos proxies y middlewares intenten parsear la nada.
+        ...(cuerpo ? { 'Content-Type': 'application/json' } : {}),
+        Authorization: `Bearer ${token}`
+      },
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined
+    });
+
+    if (!respuesta.ok) {
+      const detalle = await respuesta.json().catch(() => ({}));
+      throw new Error(detalle.error ?? `HTTP ${respuesta.status}`);
+    }
+
+    // 204 No Content no trae cuerpo, y pedirle .json() a una respuesta vacia
+    // lanza un error de parseo que se leeria como un fallo del borrado que en
+    // realidad si funciono.
+    return respuesta.status === 204 ? null : respuesta.json();
   },
 
   async _pedir(url) {

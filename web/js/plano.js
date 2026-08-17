@@ -1,4 +1,5 @@
 import { API } from './api.js';
+import { abrirReserva, refrescarReserva } from './reserva.js';
 /**
  * Plano del nivel en SVG.
  *
@@ -71,6 +72,30 @@ function aFecha(valor) {
   return new Date(iso);
 }
 
+/**
+ * "hace 3 min" en vez de "11/8/2026, 9:27:00".
+ *
+ * De esa fecha lo unico que importa es si el dato es de recien o de hace tres
+ * horas; la fecha completa obliga a hacer la resta mentalmente.
+ *
+ * El caso negativo no es teorico: si el reloj del servidor esta unos segundos
+ * adelantado la resta da negativa, y sin la guarda diria "hace -1 min".
+ */
+function hace(valor) {
+  const fecha = aFecha(valor);
+  if (Number.isNaN(fecha.getTime())) return 'sin fecha';
+
+  const minutos = Math.floor((Date.now() - fecha) / 60000);
+
+  if (minutos < 1)  return 'recién';
+  if (minutos < 60) return `hace ${minutos} min`;
+
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+
+  return fecha.toLocaleString('es-UY');
+}
+
 /** Crea un elemento SVG con sus atributos. document.createElement no sirve
  *  aca: sin el namespace el navegador crea un elemento HTML desconocido que no
  *  se dibuja. */
@@ -88,6 +113,74 @@ function crearSVG(nombre, atributos = {}, texto = null) {
 function contarLibres(plazas) {
   return plazas.filter((plaza) => plaza.estado === 'libre').length;
 }
+
+// --- escala del plano --------------------------------------------------
+//
+// Todos los niveles se dibujan a la MISMA escala, y esa es toda la idea de
+// esta seccion.
+//
+// Antes cada SVG se estiraba al ancho disponible con width:100%. Como cada
+// nivel tiene su propio ancho_plano —580, 580 y 480— la misma plaza de 40x80
+// terminaba dibujada a 0.55 px por unidad en la planta baja y a 0.67 en el
+// subsuelo 2. Dos tamanos distintos para la misma plaza segun el piso: un
+// plano deja de ser un plano si la escala cambia de una hoja a la otra.
+//
+// La referencia es el nivel mas grande. El mas ancho llena el espacio y los
+// demas quedan proporcionalmente mas angostos, que es justo lo que se quiere
+// mostrar: el subsuelo 2 ES mas chico.
+
+// Piso de escala, en pixeles de pantalla por unidad del plano. A 1 una plaza
+// mide 40x80 px, que es un objetivo comodo para el dedo. Por debajo de esto no
+// se achica mas: se deja que el plano scrollee en horizontal, porque una plaza
+// de 22 px no se puede tocar manejando.
+const ESCALA_MINIMA = 1;
+
+function dimensionesDeReferencia() {
+  return {
+    ancho: Math.max(...niveles.map((datos) => datos.nivel.ancho_plano)),
+    alto:  Math.max(...niveles.map((datos) => datos.nivel.alto_plano))
+  };
+}
+
+/** Pixeles de pantalla por unidad del plano, unica para todos los niveles. */
+function escalaActual() {
+  const contenedor = document.getElementById('plano');
+  const { ancho, alto } = dimensionesDeReferencia();
+
+  // clientWidth ya descuenta el padding, que es el espacio real para dibujar.
+  const anchoDisponible = contenedor.clientWidth;
+
+  // El alto es una estimacion: lo que queda de ventana descontando la barra,
+  // el encabezado y la leyenda. No hace falta que sea exacta, solo evita que
+  // en una pantalla ancha el plano quede mas alto que la ventana.
+  const altoDisponible = window.innerHeight - 240;
+
+  const cabe = Math.min(anchoDisponible / ancho, altoDisponible / alto);
+
+  return Math.max(ESCALA_MINIMA, cabe);
+}
+
+/**
+ * Fija el tamano en pixeles del SVG dibujado.
+ *
+ * Va como atributos width/height y no por CSS: el CSS no puede saber cual es
+ * el nivel mas ancho de los tres, que es de donde sale la escala compartida.
+ */
+function ajustarEscala() {
+  const svg = document.querySelector('#plano .plano-svg');
+  if (!svg) return;
+
+  const escala = escalaActual();
+  const [, , ancho, alto] = svg.getAttribute('viewBox').split(' ').map(Number);
+
+  svg.setAttribute('width', Math.round(ancho * escala));
+  svg.setAttribute('height', Math.round(alto * escala));
+}
+
+// Girar el telefono cambia el ancho disponible y con el la escala. Se ajusta
+// el SVG que ya esta dibujado en vez de redibujar el plano: redibujar
+// destruiria el <g> que tiene el foco del teclado y la plaza seleccionada.
+window.addEventListener('resize', ajustarEscala);
 
 // --- plano grande ------------------------------------------------------
 
@@ -183,10 +276,14 @@ function dibujarPlano({ nivel, plazas, referencias }) {
 
   // Las referencias van antes que las plazas: en SVG no hay z-index, dibuja
   // encima lo que aparece despues en el documento.
-  referencias.forEach((referencia) => svg.append(dibujarReferencia(referencia)));
+  referencias.forEach((item) => svg.append(dibujarReferencia(item)));
   plazas.forEach((plaza) => svg.append(dibujarPlaza(plaza)));
 
   document.getElementById('plano').replaceChildren(svg);
+
+  // Despues de insertarlo: la escala necesita el ancho real del contenedor, y
+  // antes de estar en el documento ese ancho no existe.
+  ajustarEscala();
 }
 
 // --- planos chicos (selector de niveles) -------------------------------
@@ -204,6 +301,12 @@ function dibujarMini({ nivel, plazas }) {
     viewBox: `0 0 ${nivel.ancho_plano} ${nivel.alto_plano}`,
     'aria-hidden': 'true'
   });
+
+  // Mismo problema que en el plano grande, y misma solucion: si cada mini se
+  // estirara al 100% del boton, el subsuelo 2 —que es mas angosto— mostraria
+  // sus plazas mas grandes que los otros dos y parecerian pisos distintos. El
+  // porcentaje respecto del nivel mas ancho deja a los tres en una escala.
+  svg.style.width = `${nivel.ancho_plano / dimensionesDeReferencia().ancho * 100}%`;
 
   svg.append(crearSVG('rect', {
     class: 'piso',
@@ -278,6 +381,13 @@ function seleccionar(plaza, grupo) {
   grupo.classList.add('seleccionada');
   plazaSeleccionada = grupo;
   mostrarDetalle(plaza);
+
+  // En una sola columna el detalle queda debajo del plano, fuera de la
+  // pantalla: sin esto, en el telefono tocar una plaza no parece hacer nada.
+  if (window.matchMedia('(max-width: 860px)').matches) {
+    document.getElementById('detalle')
+      .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 /** Separado de seleccionar() porque cuando llega un cambio por el canal hay que
@@ -294,12 +404,38 @@ function mostrarDetalle(plaza) {
     filas.push(['Autorización', ETIQUETA_AUTORIZACION[plaza.autorizacion]]);
   }
 
-  filas.push(['Actualizado', aFecha(plaza.actualizado_en).toLocaleString('es-UY')]);
+  filas.push(['Actualizado', hace(plaza.actualizado_en)]);
 
-  document.getElementById('detalle').innerHTML = `
-    <h2>Plaza ${plaza.codigo}</h2>
-    <dl>${filas.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-  `;
+  const titulo = document.createElement('h2');
+  titulo.textContent = `Plaza ${plaza.codigo}`;
+
+  const lista = document.createElement('dl');
+
+  filas.forEach(([clave, valor]) => {
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = clave;
+    dd.textContent = valor;
+    lista.append(dt, dd);
+  });
+
+  const detalle = document.getElementById('detalle');
+  detalle.replaceChildren(titulo, lista);
+
+  // Reservar solo tiene sentido sobre una plaza libre. En los demas estados el
+  // boton no aparece, en vez de aparecer deshabilitado: un boton apagado deja
+  // preguntandose por que, y el estado ya esta escrito dos lineas mas arriba.
+  if (plaza.estado !== 'libre') return;
+
+  const nivel = niveles.find((datos) => datos.nivel.id === plaza.nivel_id)?.nivel;
+
+  const boton = document.createElement('button');
+  boton.type = 'button';
+  boton.className = 'boton boton-primario';
+  boton.textContent = 'Reservar esta plaza';
+  boton.addEventListener('click', () => abrirReserva(plaza, nivel));
+
+  detalle.append(boton);
 }
 
 function limpiarDetalle() {
@@ -448,6 +584,11 @@ function aplicarCambio(plazaNueva) {
   // mostrando los datos viejos.
   Object.assign(plaza, plazaNueva);
 
+  // El modal se protege solo: si esta cerrado o muestra otra plaza no hace
+  // nada. Va aca y no en repintarPlaza para que tambien cubra el caso de una
+  // plaza de otro nivel.
+  refrescarReserva(plaza);
+
   repintarMini(plaza);
   actualizarLibres(datos);
 
@@ -465,8 +606,10 @@ function cambiarNivel(nivelId) {
 
   nivelActual = nivelId;
 
-  document.getElementById('nombre-nivel').textContent =
-    `${datos.nivel.estacionamiento ?? 'Estacionamiento'} — ${datos.nivel.nombre}`;
+  // Solo el nombre del nivel. El del estacionamiento ya esta en la barra, y
+  // tomarlo de la base lo traeria de datos_prueba.sql, que sigue diciendo el
+  // nombre viejo: una marca escrita en dos lugares se desincroniza sola.
+  document.getElementById('nombre-nivel').textContent = datos.nivel.nombre;
 
   // La plaza elegida pertenecia al nivel anterior: dejar su detalle abierto
   // mostraria datos de una plaza que ya no esta en pantalla.

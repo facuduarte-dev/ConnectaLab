@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ParkEx — Plano del nivel</title>
+  <title>Parking Shopping Paysandú — Plano del nivel</title>
 
   <!-- Servir por HTTP (npx serve web), no abrir el archivo directo: con
        file:// el navegador bloquea el fetch del JSON y el plano queda vacio. -->
@@ -12,8 +12,8 @@
 <body>
 
   <header class="barra">
-    <h1>ParkEx</h1>
-    <p class="subtitulo">Estado de plazas en tiempo real — estacionamientos privados</p>
+    <h1>Parking Shopping Paysandú</h1>
+    <p class="subtitulo">Estado de plazas en tiempo real</p>
   </header>
 
   <main class="contenido">
@@ -59,6 +59,19 @@
     Fase 5 — el plano se actualiza solo. Los estados todavía provienen del panel
     manual, no de sensores.
   </footer>
+
+  <!-- Reservar es la unica accion que la pagina le pide al usuario, y hay que
+       confirmarla: el panel de detalle informa, el modal decide. Va en un
+       <dialog> nativo porque asi el foco queda atrapado adentro, Escape cierra
+       y el fondo se vuelve inerte sin escribir una linea de JS para eso.
+       El contenido lo completa reserva.js. -->
+  <dialog id="modal-reserva" class="modal" aria-labelledby="modal-titulo">
+    <div class="modal-cuerpo">
+      <h2 id="modal-titulo">Reservar plaza</h2>
+      <p id="modal-donde" class="donde"></p>
+      <div id="modal-accion"></div>
+    </div>
+  </dialog>
 
     <script type="module" src="js/plano.js"></script>
 </body>
