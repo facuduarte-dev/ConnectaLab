@@ -5,54 +5,71 @@ import { adminAuth } from '../middleware/adminAuth.js';
 
 export const eventosRouter = Router();
 
+const ESTADOS = ['libre', 'ocupado', 'reservado', 'sin_datos'];
+const FUENTES = ['sensor', 'camara', 'manual'];
+
 // POST /api/eventos
-// Dispositivo (sensor). Body: { plaza_id, estado, fuente, confianza }
-// Ver seccion 4.3/4.4 del README: el sensor mueve "estado"; la autorizacion
-// de una plaza de discapacidad pasa a "pendiente" cuando se ocupa, y a
-// "no_aplica" cuando se libera. El cliente nunca escribe "plazas" directo:
-// esta ruta es la unica que lo hace, a partir de un evento.
+// Dispositivo. Body: { plaza_id, estado, fuente, confianza }
+//
+// Lo usa el puente serie para reportar lo que midio el sensor de una plaza
+// (README 2.1.1 y 7.5). Es el unico camino por el que un dispositivo escribe
+// estado.
+//
+// El trabajo lo hace registrar_evento(), no este archivo: inserta la fila en
+// "eventos", recalcula la autorizacion segun el tipo de plaza y actualiza
+// "plazas", todo en UNA transaccion. Hacerlo con dos llamadas sueltas desde
+// aca abriria la ventana en la que el historial dice una cosa y el estado
+// actual dice otra, y ademas obligaria a mantener la regla de la autorizacion
+// escrita dos veces: en SQL y en JavaScript. Ver db/funciones.sql y README 4.3.
 eventosRouter.post('/', deviceAuth, async (req, res, next) => {
   try {
     const { plaza_id, estado, fuente, confianza } = req.body;
 
-    if (!plaza_id || !estado || !fuente) {
-      return res.status(400).json({ error: 'Faltan campos: plaza_id, estado, fuente' });
+    const plazaId = Number(plaza_id);
+
+    if (!Number.isInteger(plazaId) || !estado || !fuente) {
+      return res
+        .status(400)
+        .json({ error: 'Faltan campos: plaza_id (entero), estado, fuente' });
     }
 
-    // 1. Se guarda el evento tal cual llego (es el historial crudo).
-    const { error: errorEvento } = await supabase
-      .from('eventos')
-      .insert({ plaza_id, estado, fuente, confianza: confianza ?? 1.0 });
-
-    if (errorEvento) throw errorEvento;
-
-    // 2. Buscamos el tipo de la plaza para saber si aplica autorizacion.
-    const { data: plaza, error: errorPlaza } = await supabase
-      .from('plazas')
-      .select('tipo')
-      .eq('id', plaza_id)
-      .maybeSingle();
-
-    if (errorPlaza) throw errorPlaza;
-    if (!plaza) return res.status(404).json({ error: 'Plaza no encontrada' });
-
-    const cambios = { estado, actualizado_en: new Date().toISOString() };
-
-    if (plaza.tipo === 'discapacidad') {
-      cambios.autorizacion = estado === 'ocupado' ? 'pendiente' : 'no_aplica';
+    // Validar contra la lista y no dejar que reviente el enum: un valor mal
+    // escrito no es una falla del servidor.
+    if (!ESTADOS.includes(estado)) {
+      return res.status(400).json({
+        error: `estado tiene que ser uno de: ${ESTADOS.join(', ')}`,
+      });
     }
 
-    // 3. Actualizamos el estado (y autorizacion, si corresponde) de la plaza.
-    const { data: plazaActualizada, error: errorUpdate } = await supabase
-      .from('plazas')
-      .update(cambios)
-      .eq('id', plaza_id)
-      .select()
-      .maybeSingle();
+    if (!FUENTES.includes(fuente)) {
+      return res.status(400).json({
+        error: `fuente tiene que ser una de: ${FUENTES.join(', ')}`,
+      });
+    }
 
-    if (errorUpdate) throw errorUpdate;
+    const confianzaNumero = confianza ?? 1.0;
 
-    res.status(201).json(plazaActualizada);
+    if (typeof confianzaNumero !== 'number' || confianzaNumero < 0 || confianzaNumero > 1) {
+      return res.status(400).json({ error: 'confianza tiene que ser un numero entre 0 y 1' });
+    }
+
+    const { data, error } = await supabase.rpc('registrar_evento', {
+      p_plaza_id: plazaId,
+      p_estado: estado,
+      p_fuente: fuente,
+      p_confianza: confianzaNumero,
+    });
+
+    if (error) {
+      // registrar_evento() levanta una excepcion propia cuando la plaza no
+      // existe. Es un 404, no un 500: el pedido esta bien formado.
+      if (/no existe/i.test(error.message ?? '')) {
+        return res.status(404).json({ error: error.message });
+      }
+      throw error;
+    }
+
+    res.status(201).json(data);
   } catch (err) {
     next(err);
   }
