@@ -1,4 +1,4 @@
-# Parking Shopping Paysandú
+# ParkEx
 
 Plataforma de gestión inteligente de plazas para **estacionamientos privados**.
 Muestra en tiempo real, sobre el plano del parking, qué plazas están libres,
