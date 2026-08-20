@@ -2,25 +2,22 @@
  * ParkEx - Sensor de ocupacion de una plaza
  *
  * Mide la distancia con un HC-SR04 montado en el cielorraso, apuntando hacia
- * abajo y centrado sobre la plaza (README 7.2), y reporta a la API cada vez que
- * la plaza cambia de estado (README 7.3).
+ * abajo y centrado sobre la plaza (README 7.2), y decide cuando la plaza
+ * cambia de estado (README 7.3).
  *
- * Se compila igual para Arduino (etapa de prueba, sin WiFi: el reporte sale por
- * el monitor serie) y para ESP32 (etapa final: el mismo reporte va por HTTP).
+ * No habla con la red ni sabe que existe una API: emite el protocolo serie del
+ * README 7.4 y el puente lo traduce a POST /api/eventos (README 2.1.1). Por eso
+ * aca no hay tokens ni contraseñas: si alguien se lleva la placa, no se lleva
+ * nada.
  */
 
 // ---------------------------------------------------------------- Conexionado
 //
-// En el ESP32 el pin ECHO entrega 5 V y la entrada tolera 3.3 V: hay que
-// intercalar el divisor de 1k + 2k del README 7.1 o la placa se degrada.
+// El HC-SR04 y el Uno trabajan los dos a 5 V, asi que ECHO entra directo y no
+// lleva divisor de tension (README 7.1).
 
-#if defined(ESP32)
-  const int trigPin = 5;    // GPIO 5
-  const int echoPin = 18;   // GPIO 18, mediante divisor de tension
-#else
-  const int trigPin = 9;    // Arduino Uno
-  const int echoPin = 8;
-#endif
+const int trigPin = 9;
+const int echoPin = 8;
 
 const int ledRojo  = 2;     // encendido = plaza ocupada
 const int ledVerde = 3;     // encendido = plaza libre
@@ -35,8 +32,8 @@ const int ledVerde = 3;     // encendido = plaza libre
 
 // #define DEPURAR_DISTANCIA
 
-const int DISTANCIA_PISO_CM = 230;   // sensor a 2,3 m del piso
-const int UMBRAL_CM         = 150;   // punto medio piso / techo del auto
+const int DISTANCIA_PISO_CM = 180;   // sensor a 2,3 m del piso
+const int UMBRAL_CM         = 160;   // punto medio piso / techo del auto
 
 const int DISTANCIA_MINIMA_CM = 2;   // fuera de este rango el HC-SR04 no mide
 const int DISTANCIA_MAXIMA_CM = 400;
@@ -44,7 +41,6 @@ const int DISTANCIA_MAXIMA_CM = 400;
 // -------------------------------------------------------------------- Reporte
 
 const int PLAZA_ID = 1;                    // id de esta plaza en la base
-const float CONFIANZA_SENSOR = 0.8;        // README 5, cuerpo de /api/eventos
 
 const unsigned long INTERVALO_MEDICION_MS = 500;          // README 7.3, punto 1
 const unsigned long INTERVALO_PING_MS     = 10UL * 60000; // README 7.3, punto 5
@@ -58,9 +54,15 @@ const int LECTURAS_PARA_LIBRE   = 5;
 // margen. Sin timeout, pulseIn bloquea hasta un segundo cuando no vuelve nada.
 const unsigned long TIMEOUT_ECO_US = 25000;
 
+// ---------------------------------------------------------------------- Estado
+
 bool ocupado = false;              // estado confirmado, el que se reporta
 int lecturasOcupado = 0;           // consecutivas por debajo del umbral
 int lecturasLibre   = 0;           // consecutivas por encima
+
+bool primerReporte   = true;       // todavia no se reporto nada desde el arranque
+int  lecturasValidas = 0;          // mediciones utiles desde el arranque
+int  ultimaDistancia = -1;         // ultima medicion valida, para el PING
 
 unsigned long ultimaMedicion = 0;
 unsigned long ultimoPing     = 0;
@@ -74,8 +76,13 @@ void setup() {
   Serial.begin(115200);
 
   aplicarEstado();
-  Serial.println(F("SISTEMA INICIADO - ESTADO: LUGAR LIBRE"));
-  reportarEstado();
+
+  // LISTO solo avisa que la placa arranco. El estado en el que quedo la plaza
+  // lo dice el PING inicial, que sale desde procesarMedicion() en cuanto haya
+  // mediciones suficientes.
+  Serial.print(F("LISTO;plaza="));
+  Serial.println(PLAZA_ID);
+
   ultimoPing = millis();
 }
 
@@ -89,9 +96,12 @@ void loop() {
 
   // El ping le dice al backend que el sensor sigue vivo aunque no haya cambios;
   // sin el, a los 30 minutos la plaza pasaria a sin_datos (README 4.4).
-  if (ahora - ultimoPing >= INTERVALO_PING_MS) {
-    ultimoPing = ahora;
-    reportarEstado();
+  //
+  // Si nunca hubo una medicion valida no se manda nada: el silencio es lo
+  // correcto. Pingear "libre" con el sensor roto seria afirmar algo que nadie
+  // comprobo, y justamente impediria que la plaza cayera en sin_datos.
+  if (ultimaDistancia >= 0 && millis() - ultimoPing >= INTERVALO_PING_MS) {
+    reportar(F("PING"), ultimaDistancia);
   }
 }
 
@@ -115,13 +125,24 @@ int medirDistancia() {
 
 void procesarMedicion(int distancia) {
 #ifdef DEPURAR_DISTANCIA
-  Serial.print(F("distancia: "));
+  // Se imprime ANTES del descarte, a proposito: al calibrar interesa ver los
+  // -1, que son los que avisan que el sensor esta fuera de rango o apuntando
+  // a una superficie que no le devuelve el eco.
+  Serial.print(F("DIST;plaza="));
+  Serial.print(PLAZA_ID);
+  Serial.print(F(";distancia="));
   Serial.println(distancia);
 #endif
 
   // Una lectura invalida no es "libre": no mueve ningun contador. Si el sensor
   // deja de responder del todo, el backend se entera por la falta de ping.
   if (distancia < 0) return;
+
+  ultimaDistancia = distancia;
+
+  // Deja de contar en cuanto el contador ya no se usa. Sin esto seguiria
+  // subiendo para siempre y desbordaria el int a las pocas horas.
+  if (primerReporte) lecturasValidas++;
 
   if (distancia <= UMBRAL_CM) {
     lecturasOcupado++;
@@ -133,18 +154,26 @@ void procesarMedicion(int distancia) {
 
   if (!ocupado && lecturasOcupado >= LECTURAS_PARA_OCUPADO) {
     ocupado = true;
-    cambiarEstado();
+    cambiarEstado(distancia);
   } else if (ocupado && lecturasLibre >= LECTURAS_PARA_LIBRE) {
     ocupado = false;
-    cambiarEstado();
+    cambiarEstado(distancia);
+  }
+
+  // Reporte inicial. Va al final para que la transicion tenga su chance
+  // primero: si la plaza estaba ocupada al arrancar, el EVENTO ya salio en la
+  // lectura 3 y bajo la bandera, asi que aca no se manda un PING repetido.
+  // Se espera a LECTURAS_PARA_LIBRE por ser el mayor de los dos umbrales:
+  // llegado ese punto el filtro ya decidio, en cualquiera de los dos sentidos.
+  if (primerReporte && lecturasValidas >= LECTURAS_PARA_LIBRE) {
+    reportar(F("PING"), distancia);
   }
 }
 
 // Solo se reporta cuando el estado cambia, no en cada lectura (README 7.3).
-void cambiarEstado() {
+void cambiarEstado(int distancia) {
   aplicarEstado();
-  Serial.println(ocupado ? F("ESTADO: LUGAR OCUPADO") : F("ESTADO: LUGAR LIBRE"));
-  reportarEstado();
+  reportar(F("EVENTO"), distancia);
 }
 
 void aplicarEstado() {
@@ -152,15 +181,20 @@ void aplicarEstado() {
   digitalWrite(ledVerde, ocupado ? LOW  : HIGH);
 }
 
-// Cuerpo de POST /api/eventos (README 5). En el Arduino sale por el monitor
-// serie; en el ESP32 este es el JSON que se envia con el token del dispositivo
-// en el header Authorization: Bearer <token>.
-void reportarEstado() {
-  Serial.print(F("POST /api/eventos {\"plaza_id\":"));
+// Protocolo serie del README 7.4. Es la unica salida que consume el puente.
+//
+// Todo reporte pasa por aca, y por eso aca se reinicia el reloj del ping: si
+// acabamos de decir en que estado estamos, el ping vuelve a contar desde cero.
+// Repetir la misma informacion dos veces seguidas no aporta nada.
+void reportar(const __FlashStringHelper* tipo, int distancia) {
+  primerReporte = false;
+  ultimoPing    = millis();
+
+  Serial.print(tipo);
+  Serial.print(F(";plaza="));
   Serial.print(PLAZA_ID);
-  Serial.print(F(",\"estado\":\""));
+  Serial.print(F(";estado="));
   Serial.print(ocupado ? F("ocupado") : F("libre"));
-  Serial.print(F("\",\"fuente\":\"sensor\",\"confianza\":"));
-  Serial.print(CONFIANZA_SENSOR, 2);
-  Serial.println(F("}"));
+  Serial.print(F(";distancia="));
+  Serial.println(distancia);
 }
