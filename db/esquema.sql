@@ -76,6 +76,13 @@ create table dispositivos (
   )
 );
 
+-- Dos dispositivos con el mismo token rompen la autenticacion: la busqueda por
+-- token_hash espera una sola fila y con dos devuelve error, que sale como un
+-- 500 sin relacion aparente con el problema. Los null no chocan entre si en un
+-- indice unico, asi que los sensores y camaras (que no tienen token propio)
+-- conviven sin restriccion.
+create unique index dispositivos_token_hash_unico on dispositivos (token_hash);
+
 create type tipo_permiso as enum ('abonado', 'discapacidad', 'empleado', 'visita');
 
 -- No guarda la matricula: guarda su HMAC-SHA256. Ver seccion 6.

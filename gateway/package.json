@@ -1,0 +1,16 @@
+{
+  "name": "conectalab-gateway",
+  "version": "1.0.0",
+  "description": "Puente serie: traduce el protocolo del Arduino en POST /api/eventos.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "puertos": "node scripts/listar-puertos.js",
+    "prueba": "node scripts/prueba-sin-arduino.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "serialport": "^13.0.0"
+  }
+}
