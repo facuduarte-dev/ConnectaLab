@@ -51,19 +51,29 @@ create table eventos (
   creado_en timestamptz not null default now()
 );
 
-create type tipo_dispositivo as enum ('sensor', 'camara');
+create type tipo_dispositivo as enum ('sensor', 'camara', 'gateway');
 
--- Todo dispositivo pertenece a una plaza: los sensores a todas, las camaras
--- solo a las reservadas. El tipo define que endpoint tiene permitido usar.
+-- Esta tabla es dos cosas a la vez, y conviene no confundirlas: el INVENTARIO
+-- de lo que hay instalado, y las CREDENCIALES de lo que se autentica.
+--
+-- El Arduino de una plaza figura aca como 'sensor' porque interesa saber que
+-- esa plaza esta instrumentada, pero su token_hash va en null: no habla con la
+-- red ni guarda secretos (seccion 2.1.1). Lo mismo la webcam. Quien se
+-- autentica contra la API es el puente, de tipo 'gateway', que cubre todas las
+-- plazas del estacionamiento y por eso lleva plaza_id en null.
 create table dispositivos (
   id                 serial primary key,
   estacionamiento_id integer not null references estacionamientos(id),
-  plaza_id           integer not null references plazas(id),
+  plaza_id           integer references plazas(id),   -- null cuando es gateway
   tipo               tipo_dispositivo not null,
-  token_hash         text not null,
+  token_hash         text,            -- null = no se autentica solo
   descripcion        text,
   activo             boolean not null default true,
-  ultimo_ping        timestamptz
+  ultimo_ping        timestamptz,
+  constraint plaza_segun_tipo check (
+    (tipo =  'gateway' and plaza_id is null) or
+    (tipo <> 'gateway' and plaza_id is not null)
+  )
 );
 
 create type tipo_permiso as enum ('abonado', 'discapacidad', 'empleado', 'visita');
