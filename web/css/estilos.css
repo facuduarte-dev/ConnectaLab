@@ -546,7 +546,7 @@ body {
 }
 
 /* Rojo y en texto plano, no un boton lleno: es destructivo, no es la accion
-   principal de la fila y no tiene que competir con "Crear piso". */
+   principal de la fila y no tiene que competir con "Crear piso".  */
 .borrar {
   padding: 0.3rem 0.5rem;
   border: 1px solid #e2e5ea;
