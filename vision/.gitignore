@@ -1,0 +1,10 @@
+/target/
+/debug/
+/debug2/
+*.class
+.env
+config.json
+imagenes/candidato_*.png
+imagenes/ocr_*.png
+imagenes/gris.png
+imagenes/bordes.png
