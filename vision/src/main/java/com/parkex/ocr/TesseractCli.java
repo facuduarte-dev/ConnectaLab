@@ -21,7 +21,19 @@ import java.util.stream.Stream;
 public final class TesseractCli {
     /** 11 = texto disperso (encuentra la chapa dentro de un recorte que todavia
      *  trae marco y tornillos), 7 = una unica linea (mejor cuando el recorte ya
-     *  es la chapa), 8 = una unica palabra (chapa de una sola linea, sin pais). */
+     *  es la chapa), 8 = una unica palabra (chapa de una sola linea, sin pais).
+     *
+     *  El 11 es el caro: medido sobre siete imagenes reales se lleva el 43% del
+     *  tiempo de OCR. Aun asi se queda, y en este orden. Se probaron las dos
+     *  alternativas y ninguna se gano el lugar:
+     *
+     *  - Saltearlo cuando los otros dos ya habian leido limpio: sobre las
+     *    capturas reales de la camara, dos de siete pasaron de ABC1234 a
+     *    ARC1924. Su aporte no es redundante, entra en la eleccion del mejor
+     *    recorte de cada candidato.
+     *  - Correrlo ultimo: no ahorra nada, porque el limite de tiempo es POR
+     *    modo y el 11 gasta lo suyo corra donde corra. Lo unico que cambiaba
+     *    era un desempate, y una confianza bajaba de 0,78 a 0,70. */
     private static final int[] MODOS = {11, 7, 8};
     private static final int SEGUNDOS_LIMITE = 60;
 
@@ -79,7 +91,24 @@ public final class TesseractCli {
             Arrays.fill(descartados, Integer.MAX_VALUE);
 
             for (int psm : MODOS) {
-                for (Map.Entry<Integer, Reading> entrada : run(directory, psm).entrySet()) {
+                Map<Integer, Reading> salida;
+                try {
+                    salida = run(directory, psm);
+                } catch (IOException e) {
+                    // Un modo que falla o que se pasa del limite de tiempo NO
+                    // puede tirar a la basura lo que ya leyeron los otros.
+                    //
+                    // Antes lanzaba, y la excepcion salia de readAll entero: en
+                    // una maquina lenta el modo 11 tardaba 74 s sobre un primer
+                    // plano, se pasaba de los 60, y los modos 7 y 8 -que leen esa
+                    // misma chapa bien y en 17 s entre los dos- no llegaban a
+                    // correr nunca. El modo que se colgaba era justamente el que
+                    // peor leia esa imagen.
+                    System.err.printf("Tesseract psm %d: %s (se sigue con los otros modos)%n",
+                            psm, e.getMessage());
+                    continue;
+                }
+                for (Map.Entry<Integer, Reading> entrada : salida.entrySet()) {
                     int i = entrada.getKey();
                     if (i < 0 || i >= images.size()) continue;
                     Reading lectura = entrada.getValue();
