@@ -37,7 +37,14 @@ public final class Consensus {
             Map.Entry<Character,Long> winner=counts.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow();
             voted.append(winner.getKey()); agreement+=winner.getValue()/(double)sameLength.size();
         }
-        double confidence=agreement/7.0;
+        double average = sameLength.stream()
+                .mapToDouble(OcrResult::confidence).average().orElse(0);
+                double combined = 1 - Math.pow(1 - average, sameLength.size());
+            // Mismo tope que la rama exacta: la repeticion es evidencia, pero no
+            // puede inventar calidad que Tesseract nunca reporto.
+            if (sameLength.stream().allMatch(r -> r.confidence() <= 0.51))
+                combined = Math.min(combined, 0.79);
+            double confidence = Math.min(agreement / 7.0, combined);
         return confidence>=threshold?new OcrResult(voted.toString(),confidence):OcrResult.unreadable();
     }
 }

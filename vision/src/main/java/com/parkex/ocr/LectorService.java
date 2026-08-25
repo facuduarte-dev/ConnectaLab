@@ -21,8 +21,14 @@ public final class LectorService {
                 new TesseractCli(System.getenv().getOrDefault("TESSERACT_PATH", "tesseract"), new PlateNormalizer()));
     }
 
+    // Plazas por las que ya se avisó que la API las reporta pendientes pero
+    // este servicio no las atiende. Se avisa una vez y no en cada vuelta: el
+    // bucle gira cada pocos segundos y repetirlo seria ruido, no información.
+    private final Set<Integer> desatendidasAvisadas = new HashSet<>();
+
     public void run() throws Exception {
-        System.out.printf("Servicio de lectura: %d cámaras, API %s%n", config.cameras().size(), config.apiUrl());
+        System.out.printf("Servicio de lectura: %d cámaras (plazas %s), API %s%n",
+                config.cameras().size(), config.cameras().keySet(), config.apiUrl());
         while (true) {
             for (Map.Entry<Integer, ServiceConfig.Camera> entry : config.cameras().entrySet()) {
                 int plazaId = entry.getKey();
@@ -30,7 +36,8 @@ public final class LectorService {
                 try {
                     // Cada cámara pregunta con SU token: deviceAuth ata un
                     // dispositivo de tipo 'camara' a una única plaza.
-                    if (!api.pending(camera.token()).contains(plazaId)) continue;
+                    List<Integer> pendientes = api.pending(camera.token());
+                    if (!pendientes.contains(plazaId)) { avisarDesatendidas(plazaId, pendientes); continue; }
                     process(plazaId, camera);
                 } catch (Exception e) {
                     // Una cámara rota no puede tumbar el servicio entero: las
@@ -39,6 +46,26 @@ public final class LectorService {
                 }
             }
             Thread.sleep(config.pollMs());
+        }
+    }
+
+    /**
+     * Avisa cuando el backend reporta plazas pendientes que este servicio no
+     * atiende.
+     *
+     * Sin esto el bucle las saltea en silencio: la plaza se queda en
+     * 'pendiente' para siempre, la terminal no vuelve a escribir una línea
+     * después del cartel de arranque, y no hay ningún error en ningún lado. La
+     * causa casi siempre es la misma —config.json apuntando a una plaza que no
+     * es la que tiene la cámara— y es indistinguible de "todavía no llegó nadie".
+     */
+    private void avisarDesatendidas(int plazaId, List<Integer> pendientes) {
+        for (int pendiente : pendientes) {
+            if (config.cameras().containsKey(pendiente) || !desatendidasAvisadas.add(pendiente)) continue;
+            System.err.printf(
+                    "La plaza %d está pendiente y ninguna cámara de config.json la atiende "
+                    + "(este token cubre la plaza %d). ¿La clave de \"camaras\" es la correcta?%n",
+                    pendiente, plazaId);
         }
     }
 
@@ -68,11 +95,16 @@ public final class LectorService {
         boolean unreadable = result.plate().isEmpty();
         String hash = unreadable ? null : hasher.hash(result.plate(), config.hmacSecret());
 
-        api.report(camera.token(), plazaId, hash, unreadable ? 0 : result.confidence());
+        // Lo ultimo que se mira antes de hashear: despues de esta linea la
+        // matricula deja de existir como texto en todo el sistema.
+        Boolean distintivo = unreadable ? null : Distintivo.presente(result.plate());
+
+        api.report(camera.token(), plazaId, hash, unreadable ? 0 : result.confidence(), distintivo);
 
         // La matrícula NO se loguea: de esta máquina sale sólo el hash (README 6).
         System.out.printf("plaza %d -> %s (%.2f)%n", plazaId,
-                unreadable ? "no_verificable" : hash.substring(0, 12) + "…",
+                unreadable ? "no_verificable"
+                           : hash.substring(0, 12) + "… distintivo=" + (distintivo ? "sí" : "no"),
                 unreadable ? 0.0 : result.confidence());
     }
 }

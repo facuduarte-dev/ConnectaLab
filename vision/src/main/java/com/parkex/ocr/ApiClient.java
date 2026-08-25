@@ -34,12 +34,21 @@ public final class ApiClient {
      * POST /api/lecturas. hash null significa "no pude leer", y se reporta
      * igual: es lo que distingue no_verificable de no_autorizado (README 9.3)
      * y lo único que saca a la plaza de 'pendiente'.
+     *
+     * distintivoDi es lo único que el backend no puede averiguar por su cuenta:
+     * de acá sale el HMAC y de un hash no se recupera el texto de la chapa.
      */
-    public void report(String token, int plazaId, String hash, double confidence) throws Exception {
+    public void report(String token, int plazaId, String hash, double confidence, Boolean distintivoDi) throws Exception {
         ObjectNode body = json.createObjectNode();
         body.put("plaza_id", plazaId);
-        body.put("matricula_hash", hash);   // null se serializa como null, que es lo que espera la API
+        body.put("matricula_hash", hash);
         body.put("confianza", confidence);
+        // null, no false, cuando no hubo lectura. Sin matricula no hay
+        // distintivo que mirar, y mandar false ahi seria AFIRMAR que la chapa
+        // no lo tenia: convertiria cada foto borrosa en una infraccion, que es
+        // exactamente lo que no_verificable existe para evitar (README 9.3).
+        if (distintivoDi == null) body.putNull("distintivo_di");
+        else body.put("distintivo_di", distintivoDi);
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/lecturas"))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "application/json")

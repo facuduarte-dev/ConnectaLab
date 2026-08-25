@@ -21,6 +21,15 @@
 </dependency>
     </dependencies>
     <build><plugins>
+        <!-- Fijado a proposito. Si no se declara la version, Maven usa la de su
+             super-POM, que hasta la 3.8.x era el compiler plugin 3.1. Ese plugin
+             es anterior a maven.compiler.release (que existe desde el 3.6.0):
+             ignora la propiedad de arriba en silencio, compila con el default
+             historico —Java 5— y el build muere con "Source option 5 is no
+             longer supported". Con la version escrita aca, el proyecto compila
+             igual en cualquier Maven y no depende de lo que tenga instalado
+             cada computadora. -->
+        <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version></plugin>
         <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.2</version></plugin>
         <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.0</version>
             <executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>

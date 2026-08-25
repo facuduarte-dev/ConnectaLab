@@ -50,7 +50,9 @@ public final class Main {
         }
         OcrResult result = new Consensus().choose(readings, args[0].equals("image") ? 1 : intEnv("MIN_OCCURRENCES", 3), doubleEnv("MIN_CONFIDENCE", .80));
         if (result.plate().isEmpty()) { System.out.println("RESULTADO: no_verificable"); return; }
-        System.out.printf("RESULTADO: %s confianza=%.2f%n", result.plate(), result.confidence());
+        System.out.printf("RESULTADO: %s confianza=%.2f distintivo=%s%n",
+                result.plate(), result.confidence(),
+                Distintivo.presente(result.plate()) ? "sí" : "no");
         String secret=System.getenv("HMAC_SECRET"); if(secret!=null&&!secret.isBlank()) System.out.println("HMAC-SHA256: "+new HmacHasher().hash(result.plate(),secret));
     }
     private static String defaultTesseract(){ Path p=Path.of("C:/Program Files/Tesseract-OCR/tesseract.exe"); return Files.isExecutable(p)?p.toString():"tesseract"; }

@@ -33,7 +33,7 @@ más serios que tenía el diseño anterior.
 |---|---|
 | El HC-SR04 se degrada con lluvia, suciedad y cambios de temperatura | Ambiente techado y estable, sensor montado en el cielorraso |
 | El OCR falla de noche, en ángulo y con la chapa sucia | La matrícula se lee en la plaza reservada: vehículo detenido, iluminación artificial constante y tiempo de sobra para reintentar |
-| No existe una API pública del padrón de permisos de la Intendencia | El parking administra su propio padrón de vehículos autorizados |
+| No existe una API pública del padrón de permisos de la Intendencia | No hace falta consultarlo: el distintivo de discapacidad viene impreso en la propia chapa (4.3) |
 | Escala inabarcable: miles de plazas dispersas por la ciudad | Un parking son entre 20 y 200 plazas, concentradas en un edificio con una computadora de operacion |
 
 Se suma un quinto punto, no menor: el operador del parking tiene una relación
@@ -367,39 +367,29 @@ create table dispositivos (
 );
 ```
 
-**Padrón propio del parking.** Reemplaza al padrón de la Intendencia, que no era
-consultable. Acá el operador administra sus propios vehículos autorizados:
-abonados, empleados, visitas y permisos de discapacidad.
+**No hay tabla de vehículos autorizados.** La verificación no compara la
+matrícula contra ningún padrón: mira si la chapa lleva el distintivo de
+discapacidad (4.3). El hash que guarda `lecturas` es el identificador de una
+lectura dentro del historial de su plaza, no una clave de búsqueda contra nada.
 
 ```sql
-create type tipo_permiso as enum ('abonado', 'discapacidad', 'empleado', 'visita');
-
--- No guarda la matricula: guarda su HMAC-SHA256. Ver seccion 6.
-create table vehiculos_autorizados (
-  id                 serial primary key,
-  estacionamiento_id integer not null references estacionamientos(id),
-  matricula_hash     text not null,
-  tipo_permiso       tipo_permiso not null,
-  referencia         text,          -- 'Unidad 402'. Nunca la matricula ni el nombre.
-  vigente_desde      date not null default current_date,
-  vigente_hasta      date,
-  activo             boolean not null default true,
-  unique (estacionamiento_id, matricula_hash, tipo_permiso)
-);
-
 create type resultado_lectura as enum (
   'autorizado', 'no_autorizado', 'no_verificable'
 );
 
 -- Una fila por intento de lectura de la camara de una plaza reservada. No
 -- guarda la matricula ni la imagen: solo el HMAC. Se poda a los 30 dias.
+--
+-- Tampoco guarda el distintivo en una columna aparte: en una plaza de
+-- discapacidad 'autorizado' YA significa que la chapa lo llevaba, y
+-- 'no_autorizado' que no. Una columna extra seria el mismo dato escrito dos
+-- veces, y dos lugares donde puede terminar en desacuerdo consigo mismo.
 create table lecturas (
   id             bigserial primary key,
   plaza_id       integer not null references plazas(id),
   matricula_hash text,          -- null cuando el OCR no pudo leerla
   confianza      real not null check (confianza between 0 and 1),
   resultado      resultado_lectura not null,
-  vehiculo_id    integer references vehiculos_autorizados(id),
   creado_en      timestamptz not null default now()
 );
 
@@ -428,13 +418,29 @@ cámara, el segundo. Para una plaza de discapacidad la secuencia completa es:
 | Qué pasó | `estado` | `autorizacion` |
 |---|---|---|
 | El sensor reporta que llegó un auto | `ocupado` | `pendiente` |
-| La cámara leyó y el hash está en el padrón con permiso vigente | `ocupado` | `autorizado` |
-| La cámara leyó con confianza suficiente y el hash no está en el padrón | `ocupado` | `no_autorizado` |
+| La cámara leyó con confianza suficiente y la chapa lleva el distintivo | `ocupado` | `autorizado` |
+| La cámara leyó con confianza suficiente y la chapa no lo lleva | `ocupado` | `no_autorizado` |
 | La cámara no pudo leer, o leyó con confianza baja | `ocupado` | `no_verificable` |
 | El sensor reporta que se fue | `libre` | `no_aplica` |
 
 En las plazas que no son de discapacidad `autorizacion` vale siempre
 `no_aplica`: no hay cámara y no hay nada que verificar.
+
+**Qué se mira, y por qué es la chapa y no un padrón.** El distintivo de
+discapacidad está impreso en la matrícula: el bloque de letras termina en `DI`
+—`IDI 1483`, `ADI 4021`—. Un padrón propio del parking sería una copia parcial y
+siempre desactualizada de algo que la chapa ya dice sola, y por el mismo motivo
+que 2.2 da para desconfiar de él: el permiso es de la persona, y el parking no
+tiene cómo enterarse de una alta o una baja que otorga la Intendencia.
+
+**Dónde se mira.** En el lector, sobre la matrícula ya normalizada y **antes**
+de hashearla. Es el último punto del recorrido en el que la chapa todavía existe
+como texto: de ahí en adelante sólo viaja el HMAC, y de un hash no se recupera
+la matrícula (sección 6). El lector reporta el hecho que observó
+—`distintivo_di: true` o `false`— y el backend decide qué significa. Esa
+separación es deliberada: si mañana cambia qué amerita una alerta, se toca un
+archivo del backend y no hay que reinstalar el programa Java de la computadora
+del parking.
 
 ### 4.4 Reglas de negocio
 
@@ -449,8 +455,6 @@ En las plazas que no son de discapacidad `autorizacion` vale siempre
   `no_verificable`. Una plaza no puede quedarse en `pendiente` para siempre.
 - Cuando una plaza se libera, su autorización vuelve a `no_aplica`. La
   autorización describe al vehículo que está ahí, no a la plaza.
-- Un vehículo cuyo permiso venció deja de contar como autorizado desde la fecha
-  de vencimiento, aunque siga figurando en la tabla.
 
 ---
 
@@ -492,15 +496,25 @@ imagen**, sólo el hash:
 {
   "plaza_id": 1,
   "matricula_hash": "9f86d081884c7d65...",
-  "confianza": 0.93
+  "confianza": 0.93,
+  "distintivo_di": true
 }
 ```
 
-Si el OCR no pudo leer nada se envía `"matricula_hash": null` y `"confianza": 0`.
-La lectura se registra igual: saber que se intentó y no se pudo es justamente lo
-que distingue `no_verificable` de `no_autorizado`. El backend resuelve el campo
-`resultado` comparando el hash contra el padrón; el lector no conoce el padrón y
-no decide nada.
+Si el OCR no pudo leer nada se envía `"matricula_hash": null`, `"confianza": 0`
+y `"distintivo_di": null`. La lectura se registra igual: saber que se intentó y
+no se pudo es justamente lo que distingue `no_verificable` de `no_autorizado`.
+El distintivo va en `null` y no en `false` porque sin matrícula no hay
+distintivo que mirar, y un `false` ahí sería *afirmar* que la chapa no lo
+llevaba.
+
+`distintivo_di` es lo único del cuerpo que el backend no podría averiguar por su
+cuenta: de la computadora del parking sale el HMAC, y de un hash no se recupera
+el texto de la chapa. Por eso el reparto es ése —el lector reporta el **hecho**
+que observó y el backend resuelve `resultado`, que es la **política**—. Si
+`matricula_hash` viene con valor y `distintivo_di` no es un booleano, la API
+responde `400` en vez de asumir `false`: un campo que falta no puede convertirse
+en una acusación.
 
 El token va en el header `Authorization: Bearer <token>`. El backend verifica
 que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
@@ -514,8 +528,6 @@ que el dispositivo tenga permitido reportar sobre esa plaza o estacionamiento.
 | `GET` | `/api/lecturas?plaza_id=` | Historial de lecturas de una plaza reservada |
 | `GET` | `/api/alertas` | Bandeja de alertas pendientes de revisión |
 | `PATCH` | `/api/alertas/:id` | Marcar una alerta como revisada |
-| `POST` | `/api/vehiculos` | Alta de un vehículo autorizado en el padrón |
-| `DELETE` | `/api/vehiculos/:id` | Baja de un vehículo del padrón |
 | `POST` | `/api/niveles` | Alta de un piso con sus plazas generadas |
 | `DELETE` | `/api/niveles/:id` | Baja de un piso; 409 si tiene historial |
 
@@ -540,8 +552,10 @@ almacenarla:
 - El lector de matrículas calcula un **HMAC-SHA256** de la matrícula
   normalizada, con una clave secreta que vive sólo en esa máquina.
 - Lo único que viaja por la red y se guarda en la base es ese hash.
-- El padrón de vehículos autorizados se genera con la misma función y la misma
-  clave, así que comparar permisos es comparar hashes.
+- Ese hash **no se compara contra nada**: identifica una lectura dentro del
+  historial de su plaza y nada más. Lo que decide la autorización —si la chapa
+  lleva el distintivo— se mira antes de hashear, y de esa máquina sale sólo el
+  resultado de esa mirada: un booleano, nunca la matrícula.
 
 **Por qué HMAC y no un SHA-256 pelado:** el espacio de matrículas posibles son
 unos pocos millones de combinaciones. Con un hash sin clave, cualquiera que
@@ -709,7 +723,7 @@ componente del lado del hardware que conoce la API, y su trabajo es corto:
    pocos segundos, y lo deja registrado.
 
 Lo que el puente **no** hace: no interpreta distancias, no decide estados, no
-conoce el padrón y no habla con la base de datos. Traduce y reintenta.
+resuelve autorizaciones y no habla con la base de datos. Traduce y reintenta.
 
 **Por qué en Node y no en Java.** El backend ya es Node y vive en el mismo
 repositorio, así que el puente comparte lenguaje, dependencias y forma de
@@ -790,11 +804,17 @@ Su ciclo es simple porque el sensor le hizo la parte difícil:
    auto estacionado no se mueva es lo que permite este lujo, y es la mejor
    defensa contra una lectura equivocada: un error de OCR rara vez se repite
    igual muchas veces seguidas.
-5. Calcula el HMAC de esa matrícula y hace `POST /api/lecturas`.
+5. Mira si esa matrícula lleva el distintivo de discapacidad —el bloque de
+   letras termina en `DI`—. Es el último paso en que la chapa existe como texto.
+6. Calcula el HMAC de esa matrícula y hace `POST /api/lecturas` con el hash, la
+   confianza y el distintivo.
 
-Nótese que el servicio **no consulta el padrón ni decide si el vehículo está
-autorizado**. Sólo lee y hashea. Quien compara contra el padrón es el backend,
-que es el único que tiene por qué conocerlo.
+Nótese que el servicio **no decide si el vehículo está autorizado**: reporta dos
+hechos —qué leyó, y si la chapa llevaba el distintivo— y nada más. Que el paso 5
+viva acá no es comodidad: acá es el único lugar donde todavía se lo puede mirar,
+porque después del paso 6 la matrícula deja de existir como texto en todo el
+sistema (4.3). Que la decisión viva en el backend tampoco lo es: cambiar la
+regla no puede obligar a reinstalar un programa en la computadora del parking.
 
 ---
 
@@ -810,7 +830,8 @@ fotos fijas. Lo que sigue describe cómo funciona y cómo se integra.
 | 1 | Recorte progresivo | El programa va recortando la foto hasta aislar la matrícula |
 | 2 | Lectura | Sobre ese recorte lee el texto y devuelve un valor de confianza |
 | 3 | Normalización | Se limpia el texto y se lo valida contra el formato de matrícula |
-| 4 | Hasheo | Se calcula el HMAC-SHA256 de la matrícula ya normalizada |
+| 4 | Distintivo | Se mira si el bloque de letras termina en `DI`, con la chapa todavía en texto |
+| 5 | Hasheo | Se calcula el HMAC-SHA256 de la matrícula ya normalizada |
 
 **No hay etapa de detección del vehículo.** El diseño anterior empezaba con YOLO
 buscando el auto dentro de la escena, para después buscar la chapa dentro del
@@ -841,14 +862,27 @@ El patrón es configurable porque conviven formatos anteriores al Mercosur.
 
 | Resultado | Cuándo | Consecuencia |
 |---|---|---|
-| `autorizado` | Hash presente en el padrón con permiso vigente | La plaza queda en verde: el vehículo puede estar ahí |
-| `no_autorizado` | Hash leído con confianza ≥ 0,80 y ausente del padrón | Se genera una alerta para revisión humana |
-| `no_verificable` | El OCR no leyó nada, o con confianza < 0,80 | No se lo puede asociar a ningún permiso, y **no** se genera alerta |
+| `autorizado` | Se leyó con confianza ≥ 0,80 y la chapa lleva el distintivo `DI` | La plaza queda en verde: el vehículo puede estar ahí |
+| `no_autorizado` | Se leyó con confianza ≥ 0,80 y la chapa no lo lleva | Se genera una alerta para revisión humana |
+| `no_verificable` | El OCR no leyó nada, o leyó con confianza < 0,80 | No se puede afirmar nada sobre la chapa, y **no** se genera alerta |
 
-**No poder leer la matrícula no es lo mismo que leerla y que no tenga permiso.**
-Confundirlas convertiría cada lectura fallida en una falsa infracción. Por eso
-`no_verificable` existe como estado separado y nunca dispara una alerta por sí
-mismo.
+**No poder leer la matrícula no es lo mismo que leerla y que no lleve el
+distintivo.** Confundirlas convertiría cada lectura fallida en una falsa
+infracción. Por eso `no_verificable` existe como estado separado y nunca dispara
+una alerta por sí mismo.
+
+El distintivo se comprueba sobre la matrícula **ya normalizada**, y por eso el
+paso 2 de 9.2 no es un detalle: si cada bloque se corrige con su propio mapa,
+una `O` del bloque de letras sigue siendo una letra y no se convierte en el `0`
+que rompería el patrón. Y el `DI` tiene que estar al **final** del bloque de letras:
+aceptarlo en cualquier posición daría por autorizada a una chapa común que
+empiece con esas letras —`DIA 1234`—, y cada una de ésas es una plaza reservada
+ocupada sin que nadie se entere.
+
+Una plaza que no es de discapacidad no tiene nada que verificar. Si aun así
+llega una lectura sobre ella —una cámara mal configurada—, el resultado es
+`autorizado` y no se genera alerta: el error es de instalación, no una
+infracción de quien estacionó.
 
 ### 9.4 Qué gatilla una alerta
 
@@ -856,8 +890,12 @@ Una sola cosa: **una plaza de discapacidad cuya lectura dio `no_autorizado`**.
 La alerta nombra la plaza, porque la cámara pertenece a esa plaza y a ninguna
 otra. No hay deducción por conteo ni ambigüedad sobre cuál es.
 
+El motivo que se guarda es literal —«Vehículo sin distintivo de discapacidad en
+plaza reservada»— y la alerta apunta a la lectura que la originó, así que quien
+la revisa ve con cuánta confianza se leyó esa chapa.
+
 Una lectura `no_verificable` **nunca** genera una alerta. No poder leer la
-matrícula no es lo mismo que leerla y que no tenga permiso; confundirlas
+matrícula no es lo mismo que leerla y que no lleve el distintivo; confundirlas
 convertiría cada foto borrosa en una acusación.
 
 La alerta va a una **bandeja de revisión humana** y el sistema no sanciona. La
@@ -992,8 +1030,9 @@ archivo.
 Se compila y se corre según se explica en `vision/README.md`. Antes de
 arrancarlo hay que copiar `config.example.json` a `config.json` y completar la
 URL de la API, el token del dispositivo, el índice de cada webcam y la clave
-del HMAC. Esa clave tiene que ser **la misma** con la que se generó el padrón de
-vehículos autorizados, o ningún hash va a coincidir.
+del HMAC. Esa clave no la conoce nadie más —el backend tampoco— pero tiene que
+ser **estable**: si cambia, las lecturas nuevas de un mismo vehículo dejan de
+coincidir con las viejas y el historial de la plaza queda partido en dos.
 
 ### Puente serie (opcional)
 
@@ -1039,7 +1078,7 @@ avance.
 | 6a | Sensor | Arduino + HC-SR04 calibrado, emitiendo el protocolo serie de la sección 7.4 | Sí | Pendiente |
 | 6b | Puente | El puente traduce esas líneas en `POST /api/eventos` y el plano se repinta solo | Sí | Pendiente |
 | 7 | Cámara en la plaza | La webcam se dispara con el sensor y el lector Java devuelve el hash | Sí | Pendiente |
-| 8 | Padrón y alertas | Padrón de autorizados, resolución de la autorización y bandeja de revisión | Sí | Pendiente |
+| 8 | Autorización y alertas | Comprobación del distintivo, resolución de la autorización y bandeja de revisión | Sí | Pendiente |
 
 Fuera de esta tabla, el lector de matrículas —lo que en el plan original era la
 parte más riesgosa— **ya está desarrollado y probado sobre fotos fijas**. La

@@ -28,62 +28,62 @@ lecturasRouter.get('/pendientes', deviceAuth, async (req, res, next) => {
 });
 
 // POST /api/lecturas
-// Dispositivo (camara). Body: { plaza_id, matricula_hash, confianza }
-// matricula_hash puede venir null (el OCR no pudo leer nada). Nunca llega
-// la matricula en texto plano, solo su HMAC (seccion 6 del README) — este
-// backend no conoce la clave del HMAC, solo compara hashes.
+// Dispositivo (camara). Body: { plaza_id, matricula_hash, confianza, distintivo_di }
+// matricula_hash puede venir null (el OCR no pudo leer nada), y en ese caso
+// distintivo_di viene null tambien: sin matricula no hay distintivo que mirar.
+// Nunca llega la matricula en texto plano, solo su HMAC (seccion 6 del README).
+// Justamente por eso el distintivo lo comprueba el lector y no este archivo: de
+// un hash no se puede recuperar el texto de la chapa.
 lecturasRouter.post('/', deviceAuth, async (req, res, next) => {
   try {
-    const { plaza_id, matricula_hash, confianza } = req.body;
+    const { plaza_id, matricula_hash, confianza, distintivo_di } = req.body;
 
     if (!plaza_id || confianza === undefined) {
       return res.status(400).json({ error: 'Faltan campos: plaza_id, confianza' });
     }
 
+    // Si hubo lectura, el distintivo es obligatorio y booleano. Sin esta
+    // validacion, una version vieja del lector —o el campo mal escrito— llegaria
+    // como undefined, y undefined es falso: la lectura se convertiria en "no
+    // lleva distintivo" y en una alerta contra un vehiculo que quiza si lo
+    // tenia. Un campo que falta no puede volverse una acusacion.
+    if (matricula_hash && typeof distintivo_di !== 'boolean') {
+      return res.status(400).json({
+        error: 'Falta distintivo_di (booleano) en una lectura con matricula_hash',
+      });
+    }
+
+    const { data: plaza, error: errorPlaza } = await supabase
+      .from('plazas')
+      .select('tipo')
+      .eq('id', plaza_id)
+      .maybeSingle();
+
+    if (errorPlaza) throw errorPlaza;
+    if (!plaza) return res.status(404).json({ error: 'Plaza no encontrada' });
+
+    // La POLITICA vive aca y no en el lector: el lector reporta un hecho que
+    // observo —esta chapa lleva el distintivo— y el backend decide que
+    // significa eso. Si manana cambia que amerita alerta, se toca este archivo
+    // y no hay que reinstalar el programa Java en la computadora del parking.
     let resultado;
-    let vehiculo_id = null;
 
     if (!matricula_hash || confianza < UMBRAL_CONFIANZA) {
-      // El OCR no leyo nada, o leyo con poca confianza: no se puede verificar.
       resultado = 'no_verificable';
+    } else if (plaza.tipo !== 'discapacidad') {
+      // Una camara no deberia reportar sobre una plaza comun, pero si pasa no
+      // es una infraccion: ahi no hay nada que verificar.
+      resultado = 'autorizado';
     } else {
-      // Necesitamos el estacionamiento_id de la plaza para buscar en SU padron.
-      const { data: plaza, error: errorPlaza } = await supabase
-        .from('plazas')
-        .select('nivel_id, niveles!inner(estacionamiento_id)')
-        .eq('id', plaza_id)
-        .maybeSingle();
-
-      if (errorPlaza) throw errorPlaza;
-      if (!plaza) return res.status(404).json({ error: 'Plaza no encontrada' });
-
-      const estacionamientoId = plaza.niveles.estacionamiento_id;
-      const hoy = new Date().toISOString().slice(0, 10);
-
-      const { data: vehiculo, error: errorVehiculo } = await supabase
-        .from('vehiculos_autorizados')
-        .select('id')
-        .eq('estacionamiento_id', estacionamientoId)
-        .eq('matricula_hash', matricula_hash)
-        .eq('activo', true)
-        .lte('vigente_desde', hoy)
-        .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`)
-        .maybeSingle();
-
-      if (errorVehiculo) throw errorVehiculo;
-
-      if (vehiculo) {
-        resultado = 'autorizado';
-        vehiculo_id = vehiculo.id;
-      } else {
-        resultado = 'no_autorizado';
-      }
+      resultado = distintivo_di ? 'autorizado' : 'no_autorizado';
     }
 
     // 1. Se guarda la lectura (solo hash y confianza, nunca la matricula ni la imagen).
     const { data: lectura, error: errorLectura } = await supabase
       .from('lecturas')
-      .insert({ plaza_id, matricula_hash: matricula_hash ?? null, confianza, resultado, vehiculo_id })
+      // vehiculo_id ya no se escribe: la columna sobrevive del padron y queda
+      // siempre en null. Se borra cuando se saque vehiculos_autorizados.
+      .insert({ plaza_id, matricula_hash: matricula_hash ?? null, confianza, resultado })
       .select()
       .single();
 
@@ -105,7 +105,7 @@ lecturasRouter.post('/', deviceAuth, async (req, res, next) => {
         .insert({
           plaza_id,
           lectura_id: lectura.id,
-          motivo: 'Matricula leida con confianza suficiente y ausente del padron',
+          motivo: 'Vehiculo sin distintivo de discapacidad en plaza reservada',
         });
 
       if (errorAlerta) throw errorAlerta;
