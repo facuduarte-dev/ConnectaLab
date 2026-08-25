@@ -1,0 +1,14 @@
+{
+  "api_url": "http://localhost:3000",
+  "hmac_secret": "PONER-ACA-LA-CLAVE-DE-64-HEX-GENERADA-EN-EL-PASO-2.1",
+  "intervalo_polling_ms": 5000,
+  "capturas": 8,
+  "intervalo_capturas_ms": 1200,
+  "confianza_minima": 0.80,
+  "ocurrencias_minimas": 3,
+  "camaras": {
+    "3": { "fuente": "0", "token": "TOKEN-DEL-DISPOSITIVO-CAMARA-PLAZA-3" },
+    "4": { "fuente": "1", "token": "TOKEN-DEL-DISPOSITIVO-CAMARA-PLAZA-4" },
+    "8": { "fuente": "http://192.168.1.20:4747/video", "token": "TOKEN-CAMARA-PLAZA-8" }
+  }
+}

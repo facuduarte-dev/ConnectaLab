@@ -70,6 +70,25 @@ export const API = {
   async borrarNivel(nivelId, token) {
     return this._enviar('DELETE', `${this.URL_BASE}/niveles/${nivelId}`, token);
   },
+
+    /**
+   * Bandeja de alertas pendientes de revision.
+   *
+   * Va por la API y NO por Supabase directo, aunque el panel ya tenga cliente
+   * de Supabase abierto. El motivo esta en db/politicas.sql: alertas tiene RLS
+   * habilitado y ninguna politica, asi que la anon key del navegador no ve una
+   * sola fila. Quien las lee es Express con la service_role, despues de
+   * comprobar la sesion con adminAuth.
+   */
+  async obtenerAlertas(token) {
+    return this._enviar('GET', `${this.URL_BASE}/alertas`, token);
+  },
+
+  /** Marca una alerta como revisada. El backend registra QUIEN la reviso. */
+  async marcarAlertaRevisada(alertaId, token) {
+    return this._enviar('PATCH', `${this.URL_BASE}/alertas/${alertaId}`, token, {});
+  },
+  
   /**
    * Avisa cada vez que cambia una plaza en la base.
    *

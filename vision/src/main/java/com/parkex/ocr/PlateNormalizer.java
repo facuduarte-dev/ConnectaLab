@@ -5,6 +5,7 @@ public final class PlateNormalizer {
     private static final Pattern MERCOSUR = Pattern.compile("[A-Z]{3}[0-9]{4}");
     private static final Pattern OLD = Pattern.compile("[A-Z]{3}[0-9]{3}");
     private static final Pattern SPAIN = Pattern.compile("[0-9]{4}[A-Z]{3}");
+    private static final boolean ALLOW_SPAIN = Boolean.parseBoolean(System.getenv().getOrDefault("ALLOW_SPAIN_PLATES", "false"));
     public String normalize(String raw) {
         if (raw == null) return "";
         String compactRaw=raw.replaceAll("[^A-Za-z0-9]","");
@@ -26,7 +27,7 @@ public final class PlateNormalizer {
                 if (MERCOSUR.matcher(candidate).matches() || OLD.matcher(candidate).matches()) {
                     int corrections=corrections(slice,candidate); if(corrections<fewestCorrections){best=candidate;fewestCorrections=corrections;}
                 }
-                if (length == 7) {
+                if (length == 7 && ALLOW_SPAIN) { 
                     candidate = correctSpain(slice);
                     if (SPAIN.matcher(candidate).matches()) { int corrections=corrections(slice,candidate); if(corrections<fewestCorrections){best=candidate;fewestCorrections=corrections;} }
                 }

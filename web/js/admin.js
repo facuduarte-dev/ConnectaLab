@@ -90,6 +90,9 @@ async function mostrarPanel() {
       .replaceChildren(...filas.map(construirFila));
 
     avisar(`${niveles.length} pisos, ${filas.length} plazas.`);
+    // Despues de armar la tabla, no antes: construirAlerta busca el codigo de
+    // la plaza en filasPorPlaza, que se llena recien ahi.
+    await cargarAlertas();
   } catch (error) {
     avisar(`No se pudieron cargar las plazas: ${error.message}`, true);
     return;
@@ -109,6 +112,17 @@ async function mostrarPanel() {
  * trabajando a la vez se pisarian sin enterarse.
  */
 function reflejarCambio(plazaNueva) {
+
+  // La camara acaba de resolver esta plaza. Si dio no_autorizado, la misma
+  // peticion que actualizo plazas.autorizacion inserto una alerta: hay que ir
+  // a buscarla.
+  //
+  // No hay canal de Realtime sobre "alertas" a proposito. Harian falta las dos
+  // cosas que explica db/politicas.sql —meter la tabla en la publicacion Y una
+  // politica de lectura para authenticated— y la segunda abriria la bandeja
+  // entera a cualquier usuario logueado. El canal de plazas, que ya existe,
+  // avisa igual y en el mismo instante.
+  if (plazaNueva.autorizacion === 'no_autorizado') cargarAlertas();
   const fila = filasPorPlaza.get(Number(plazaNueva.id));
   if (!fila) return;
 
@@ -184,6 +198,75 @@ function construirFila({ nivel, plaza }) {
   filasPorPlaza.set(plaza.id, { plaza, selector, celdaAutorizacion: fila.children[3] });
 
   return fila;
+}
+
+// --- alertas ------------------------------------------------------------
+
+/**
+ * Bandeja de revision humana.
+ *
+ * Una alerta = una plaza de discapacidad cuya lectura dio no_autorizado
+ * (README §9.4). Una lectura no_verificable NUNCA llega aca, y eso no es un
+ * olvido: no poder leer una chapa no es lo mismo que leerla y que no tenga
+ * permiso, y confundirlas convertiria cada foto borrosa en una acusacion.
+ */
+async function cargarAlertas() {
+  const lista = document.getElementById('lista-alertas');
+  const vacio = document.getElementById('alertas-vacio');
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('la sesión venció, volvé a entrar');
+
+    const alertas = await API.obtenerAlertas(session.access_token);
+
+    vacio.textContent = 'Sin alertas pendientes.';
+    vacio.hidden = alertas.length > 0;
+    lista.replaceChildren(...alertas.map(construirAlerta));
+  } catch (error) {
+    // El error se muestra en el lugar de la bandeja y no en el aviso general:
+    // que fallen las alertas no invalida el recuento de plazas que el aviso
+    // esta mostrando.
+    vacio.textContent = `No se pudieron cargar las alertas: ${error.message}`;
+    vacio.hidden = false;
+  }
+}
+
+function construirAlerta(alerta) {
+  const item = document.createElement('li');
+
+  // El codigo de la plaza sale del mapa que ya arma la tabla. La tabla alertas
+  // guarda plaza_id y nada mas, y pedirle el codigo a la API seria una consulta
+  // por alerta para un dato que el panel ya tiene en memoria.
+  const codigo = filasPorPlaza.get(Number(alerta.plaza_id))?.plaza.codigo
+              ?? `#${alerta.plaza_id}`;
+  const cuando = new Date(alerta.creado_en).toLocaleString('es-UY');
+
+  const texto = document.createElement('span');
+  texto.textContent = `Plaza ${codigo} — ${alerta.motivo} (${cuando})`;
+
+  const revisar = document.createElement('button');
+  revisar.type = 'button';
+  revisar.textContent = 'Marcar revisada';
+
+  revisar.addEventListener('click', async () => {
+    revisar.disabled = true;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('la sesión venció, volvé a entrar');
+
+      await API.marcarAlertaRevisada(alerta.id, session.access_token);
+      await cargarAlertas();
+      avisar(`Alerta de la plaza ${codigo} marcada como revisada.`);
+    } catch (error) {
+      revisar.disabled = false;
+      avisar(`No se pudo marcar la alerta: ${error.message}`, true);
+    }
+  });
+
+  item.append(texto, revisar);
+  return item;
 }
 
 // --- pisos --------------------------------------------------------------

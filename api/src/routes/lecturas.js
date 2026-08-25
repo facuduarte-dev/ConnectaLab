@@ -13,18 +13,18 @@ const UMBRAL_CONFIANZA = 0.8;
 // El servicio de camara (seccion 8 del README) hace polling a esta ruta.
 lecturasRouter.get('/pendientes', deviceAuth, async (req, res, next) => {
   try {
+    // El dispositivo sólo ve las plazas de SU estacionamiento. Sin este filtro
+    // cualquier token de cámara lista las plazas pendientes de todos.
     const { data, error } = await supabase
       .from('plazas')
-      .select('id, codigo, nivel_id')
+      .select('id, codigo, nivel_id, niveles!inner(estacionamiento_id)')
       .eq('tipo', 'discapacidad')
-      .eq('autorizacion', 'pendiente');
+      .eq('autorizacion', 'pendiente')
+      .eq('niveles.estacionamiento_id', req.dispositivo.estacionamiento_id);
 
     if (error) throw error;
-
     res.json(data);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // POST /api/lecturas
