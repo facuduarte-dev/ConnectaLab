@@ -18,7 +18,7 @@ public final class LectorService {
         this.config = config;
         this.api = new ApiClient(config.apiUrl());
         this.reader = new PlateReader(new PlateDetector(),
-                new TesseractCli(System.getenv().getOrDefault("TESSERACT_PATH", "tesseract"), new PlateNormalizer()));
+                new TesseractCli(TesseractCli.rutaPorDefecto(), new PlateNormalizer()));
     }
 
     // Plazas por las que ya se avisó que la API las reporta pendientes pero

@@ -6,6 +6,24 @@ public final class PlateNormalizer {
     private static final Pattern OLD = Pattern.compile("[A-Z]{3}[0-9]{3}");
     private static final Pattern SPAIN = Pattern.compile("[0-9]{4}[A-Z]{3}");
     private static final boolean ALLOW_SPAIN = Boolean.parseBoolean(System.getenv().getOrDefault("ALLOW_SPAIN_PLATES", "false"));
+    /**
+     * El formato anterior al Mercosur queda APAGADO por defecto, igual que el
+     * espanol, y no encendido como estaba.
+     *
+     * OLD son tres letras y tres digitos, y toda chapa Mercosur lleva URUGUAY
+     * impreso arriba: siempre hay una tira de letras disponible para que
+     * cualquier ventana de seis caracteres se convierta en una matricula
+     * "valida". Ocho capturas seguidas de una misma chapa ABC 1234 devolvieron
+     * UAY550, UAY446, UAY754 y LLZ228 —el UAY sale de URUG-UAY—, varias con
+     * confianza 1,00, porque Tesseract lee la palabra URUGUAY con total
+     * seguridad. La lectura estaba bien; lo que estaba mal era lo que este
+     * archivo recortaba de ella.
+     *
+     * Con la variable apagada esas invenciones pasan a ser "sin lectura", que
+     * es la verdad, y la plaza queda en no_verificable en vez de acusar a
+     * alguien. Quien tenga chapas viejas de verdad pone ALLOW_OLD_PLATES=true.
+     */
+    private static final boolean ALLOW_OLD = Boolean.parseBoolean(System.getenv().getOrDefault("ALLOW_OLD_PLATES", "false"));
     public String normalize(String raw) {
         if (raw == null) return "";
         String compactRaw=raw.replaceAll("[^A-Za-z0-9]","");
@@ -24,7 +42,7 @@ public final class PlateNormalizer {
             for (int start = 0; start <= clean.length() - length; start++) {
                 String slice = clean.substring(start, start + length);
                 String candidate = correctUruguay(slice);
-                if (MERCOSUR.matcher(candidate).matches() || OLD.matcher(candidate).matches()) {
+                if (MERCOSUR.matcher(candidate).matches() || (ALLOW_OLD && OLD.matcher(candidate).matches())) {
                     int corrections=corrections(slice,candidate); if(corrections<fewestCorrections){best=candidate;fewestCorrections=corrections;}
                 }
                 if (length == 7 && ALLOW_SPAIN) { 

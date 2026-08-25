@@ -81,8 +81,6 @@ lecturasRouter.post('/', deviceAuth, async (req, res, next) => {
     // 1. Se guarda la lectura (solo hash y confianza, nunca la matricula ni la imagen).
     const { data: lectura, error: errorLectura } = await supabase
       .from('lecturas')
-      // vehiculo_id ya no se escribe: la columna sobrevive del padron y queda
-      // siempre en null. Se borra cuando se saque vehiculos_autorizados.
       .insert({ plaza_id, matricula_hash: matricula_hash ?? null, confianza, resultado })
       .select()
       .single();

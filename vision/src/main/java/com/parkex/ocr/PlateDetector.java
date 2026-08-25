@@ -14,7 +14,84 @@ public final class PlateDetector {
      */
     private static final int MAXIMO_CANDIDATOS = 6;
 
-    public List<Mat> candidates(Mat frame) {
+    public List<Mat> candidates(Mat original) {
+        Mat frame = enderezarCuadro(original);
+        try {
+            return buscarCandidatos(frame);
+        } finally { if (frame != original) frame.release(); }
+    }
+
+    /**
+     * Nivela el cuadro entero ANTES de buscar candidatos.
+     *
+     * Todo lo que viene despues razona con rectangulos alineados a los ejes:
+     * boundingRect() para elegir candidatos, y cortes horizontales para separar
+     * la franja del pais de los caracteres. Con la chapa inclinada, el
+     * rectangulo alineado que mejor puntua deja de ser el numero y pasa a ser
+     * la franja azul, y el recorte que llega a Tesseract es la palabra URUGUAY
+     * con los techos de los digitos.
+     *
+     * Cinco grados alcanzan para romperlo: medido sobre una captura real, la
+     * foto tal cual daba una matricula inventada y la misma foto rotada cinco
+     * grados daba la correcta.
+     *
+     * La chapa se busca con minAreaRect y no con boundingRect, y ahi esta la
+     * diferencia: la proporcion del rectangulo MINIMO no cambia cuando la chapa
+     * gira, asi que sigue pareciendo una chapa. La del rectangulo alineado si
+     * cambia, y es justamente lo que hace que una chapa torcida deje de
+     * reconocerse como tal.
+     */
+    private Mat enderezarCuadro(Mat frame) {
+        Mat gris = new Mat(), binaria = new Mat(), jerarquia = new Mat();
+        List<MatOfPoint> contornos = new ArrayList<>();
+        try {
+            Imgproc.cvtColor(frame, gris, Imgproc.COLOR_BGR2GRAY);
+            Imgproc.threshold(gris, binaria, 0, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
+            Imgproc.findContours(binaria, contornos, jerarquia, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+            double areaCuadro = frame.width() * (double) frame.height();
+            RotatedRect mejor = null; double mejorArea = 0;
+            for (MatOfPoint contorno : contornos) {
+                MatOfPoint2f puntos = new MatOfPoint2f(contorno.toArray());
+                RotatedRect caja = Imgproc.minAreaRect(puntos);
+                puntos.release();
+                double largo = Math.max(caja.size.width, caja.size.height);
+                double corto = Math.min(caja.size.width, caja.size.height);
+                if (corto < 1) continue;
+                double proporcion = largo / corto, area = largo * corto;
+                if (proporcion < 1.6 || proporcion > 6.5) continue;
+                if (area < areaCuadro * .002 || area > areaCuadro * .60) continue;
+                if (area > mejorArea) { mejorArea = area; mejor = caja; }
+            }
+            if (mejor == null) return frame;
+
+            // minAreaRect devuelve el angulo en (0, 90]. Restarle 90 a los
+            // mayores de 45 lo lleva a (-45, 45], que es la inclinacion real
+            // respecto de la horizontal.
+            double angulo = mejor.angle;
+            if (angulo > 45) angulo -= 90;
+            // Por debajo de 1,5 grados no hay nada que corregir, y por encima
+            // de 20 lo mas probable es que la mancha no sea una chapa: rotar
+            // por ese angulo empeoraria el cuadro en vez de arreglarlo.
+            if (Math.abs(angulo) < 1.5 || Math.abs(angulo) > 20) return frame;
+
+            Mat rotacion = Imgproc.getRotationMatrix2D(
+                    new Point(frame.width() / 2.0, frame.height() / 2.0), angulo, 1.0);
+            Mat salida = new Mat();
+            // BORDER_REPLICATE y no negro: un borde negro nuevo seria un
+            // contorno nuevo, y el detector lo tomaria por candidato.
+            Imgproc.warpAffine(frame, salida, rotacion, frame.size(),
+                    Imgproc.INTER_CUBIC, Core.BORDER_REPLICATE, new Scalar(0, 0, 0));
+            rotacion.release();
+            return salida;
+        } catch (Exception e) {
+            // Nivelar es una mejora, no un requisito: si falla, se sigue con el
+            // cuadro tal como vino.
+            return frame;
+        } finally { gris.release(); binaria.release(); jerarquia.release(); contornos.forEach(Mat::release); }
+    }
+
+    private List<Mat> buscarCandidatos(Mat frame) {
         Mat gray = new Mat(), edges = new Mat(), hierarchy = new Mat();
         Imgproc.cvtColor(frame, gray, Imgproc.COLOR_BGR2GRAY); Imgproc.Canny(gray, edges, 100, 200);
         List<Rect> rectangles = new ArrayList<>();

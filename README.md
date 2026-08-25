@@ -583,7 +583,7 @@ una silla de ruedas. El diseño lo trata como tal:
   puente, ni en el sketch del Arduino, ni en el JavaScript del navegador.
 - **El frontend usa la clave pública con Row Level Security activado.** Las
   políticas permiten leer `plazas`, `niveles` y `estacionamientos`; `eventos`,
-  `dispositivos`, `lecturas`, `vehiculos_autorizados` y `alertas` tienen RLS
+  `dispositivos`, `lecturas` y `alertas` tienen RLS
   activado y **ninguna** política, así que la clave pública no las alcanza
   jamás. Está en `db/politicas.sql`. Habilitar RLS sin política no es lo mismo
   que dejar RLS apagado: apagado, los permisos por defecto de Supabase le dan a
@@ -926,7 +926,7 @@ ConnectaLab/
 │   │   │   ├── supabase.js       Cliente de Supabase (secret key)
 │   │   │   └── hash.js           SHA-256 de tokens de dispositivo
 │   │   ├── plano/generar.js      Geometria de un nivel a partir de la cantidad de plazas
-│   │   ├── routes/               niveles, plazas, eventos, lecturas, alertas, vehiculos
+│   │   ├── routes/               niveles, plazas, eventos, lecturas, alertas
 │   │   └── middleware/           adminAuth, deviceAuth, errorHandler
 │   ├── scripts/crear_token_dispositivo.js   Tokens de dispositivo
 │   ├── package.json
@@ -950,7 +950,8 @@ ConnectaLab/
 │   ├── esquema.sql               Tablas y tipos
 │   ├── funciones.sql             registrar_evento(): evento + estado en una operación
 │   ├── politicas.sql             RLS y publicación de tiempo real
-│   └── datos_prueba.sql
+│   ├── datos_prueba.sql          El parking de las capturas, generado desde la base
+│   └── migracion_sacar_padron.sql   Sólo para bases anteriores al 25/08/2026
 ├── Tinkercad/                    Diagramas del circuito
 ├── README.md
 └── .gitignore
@@ -978,7 +979,7 @@ editor SQL y **en este orden**, los cuatro archivos de `db/`:
 |---|---|---|
 | 1 | `esquema.sql` | Tablas y tipos |
 | 2 | `funciones.sql` | `registrar_evento()`, que usa el `PATCH` de la API |
-| 3 | `datos_prueba.sql` | Un estacionamiento con tres niveles y sus plazas |
+| 3 | `datos_prueba.sql` | El estacionamiento de las capturas: dos niveles, 50 plazas y los dos dispositivos |
 | 4 | `politicas.sql` | RLS y publicación de tiempo real |
 
 El orden importa: `funciones.sql` usa los tipos que crea `esquema.sql`, y
@@ -1075,14 +1076,21 @@ avance.
 | 3 | Base de datos y API | Tablas en Supabase, `GET /api/plazas`, el plano consume la API | No | Hecho |
 | 4 | Autenticación y panel | Login con Supabase Auth, cambio manual de estados | No | Hecho |
 | 5 | Tiempo real | El plano se repinta solo al cambiar un estado | No | Hecho |
-| 6a | Sensor | Arduino + HC-SR04 calibrado, emitiendo el protocolo serie de la sección 7.4 | Sí | Pendiente |
-| 6b | Puente | El puente traduce esas líneas en `POST /api/eventos` y el plano se repinta solo | Sí | Pendiente |
-| 7 | Cámara en la plaza | La webcam se dispara con el sensor y el lector Java devuelve el hash | Sí | Pendiente |
-| 8 | Autorización y alertas | Comprobación del distintivo, resolución de la autorización y bandeja de revisión | Sí | Pendiente |
+| 6a | Sensor | Arduino + HC-SR04 calibrado, emitiendo el protocolo serie de la sección 7.4 | Sí | Hecho |
+| 6b | Puente | El puente traduce esas líneas en `POST /api/eventos` y el plano se repinta solo | Sí | Hecho |
+| 7 | Cámara en la plaza | La webcam se dispara con el sensor y el lector Java devuelve el hash | Sí | Hecho |
+| 8 | Autorización y alertas | Comprobación del distintivo, resolución de la autorización y bandeja de revisión | Sí | Hecho |
 
-Fuera de esta tabla, el lector de matrículas —lo que en el plan original era la
-parte más riesgosa— **ya está desarrollado y probado sobre fotos fijas**. La
-fase 7 no es escribirlo: es montarlo, calibrarlo y conectarlo.
+**Las ocho fases están cerradas.** El circuito completo se probó de punta a
+punta el 25 de agosto de 2026 sobre la plaza A01: el sensor reporta por el
+puente serie, la cámara se dispara sola, lee la chapa y comprueba el distintivo,
+y la alerta aparece en la bandeja del panel sin recargar la página. Se probó con
+una matrícula con distintivo y otra sin él, y las dos dieron el resultado
+correcto.
+
+El lector de matrículas —lo que en el plan original era la parte más riesgosa—
+ya estaba desarrollado y probado sobre fotos fijas antes de la fase 7. Esa fase
+no fue escribirlo: fue montarlo, calibrarlo y conectarlo.
 
 El criterio de aceptación de la fase 3 conviene tenerlo escrito: se cambia la
 constante `MODO` de `demo` a `real` y **la página tiene que verse idéntica**. Si
@@ -1126,7 +1134,7 @@ sino de instalación: dónde se monta la cámara y si la chapa queda visible.
 | El USB no llega físicamente hasta la plaza | Medio | 5 m con cable común, 15 a 20 m con cable activo, 50 m con extensor sobre cable de red. Para la instalación definitiva, bus RS-485 (7.7). Para el prototipo se instrumenta una plaza cercana al puente |
 | Alguien desenchufa el USB del Arduino | Medio | El puente detecta que el puerto se cerró, lo registra y reintenta abrirlo cada pocos segundos; la plaza cae a `sin_datos` y el plano lo muestra |
 | El OCR lee mal y se marca a alguien como infractor | Alto | Umbral de 0,80; validación de formato; se exige la lectura repetida en varias fotos; `no_verificable` separado de `no_autorizado`; revisión humana obligatoria |
-| Filtración de la base con el historial de lecturas | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; RLS **activado** y sin ninguna política en `lecturas`, `vehiculos_autorizados`, `alertas`, `eventos` y `dispositivos`, de modo que la clave pública no devuelve una sola fila (`db/politicas.sql`) |
+| Filtración de la base con el historial de lecturas | Alto | Sólo se guarda el HMAC; la clave vive fuera de la base; poda a 30 días; RLS **activado** y sin ninguna política en `lecturas`, `alertas`, `eventos` y `dispositivos`, de modo que la clave pública no devuelve una sola fila (`db/politicas.sql`) |
 | La cámara no consigue un ángulo con la chapa visible | Medio | Montaje al frente de la plaza y a la altura de la matrícula; probar con el auto de frente y de culata; sin lectura no hay alerta, queda en `no_verificable` |
 | La cámara capta a personas bajando del auto | Medio | Se dispara sólo por evento del sensor; la imagen se procesa en memoria y no se guarda nunca |
 | Una cámara por plaza reservada encarece la instalación | Bajo | Son tres o cuatro por parking, no una por plaza; cámaras IP sobre la red existente y un solo proceso que las atiende |

@@ -42,14 +42,13 @@ create policy "lectura publica" on plazas
 -- por definicion pasa por encima de RLS. Y el sensor de la fase 6 tampoco,
 -- porque tambien escribe a traves de la API.
 --
--- Sin esto, cualquiera con la anon key —que esta en el HTML— podia bajarse
--- el padron de vehiculos autorizados y el historial de lecturas.
+-- Sin esto, cualquiera con la anon key —que esta en el HTML— podia bajarse el
+-- historial de lecturas y la bandeja de alertas.
 
-alter table eventos               enable row level security;
-alter table dispositivos          enable row level security;
-alter table vehiculos_autorizados enable row level security;
-alter table lecturas              enable row level security;
-alter table alertas               enable row level security;
+alter table eventos      enable row level security;
+alter table dispositivos enable row level security;
+alter table lecturas     enable row level security;
+alter table alertas      enable row level security;
 
 -- --- 3. Publicacion de tiempo real -----------------------------------
 --

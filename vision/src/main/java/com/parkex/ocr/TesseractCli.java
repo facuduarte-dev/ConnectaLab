@@ -28,6 +28,26 @@ public final class TesseractCli {
     private final String executable; private final PlateNormalizer normalizer;
     public TesseractCli(String executable, PlateNormalizer normalizer) { this.executable = executable; this.normalizer = normalizer; }
 
+    /**
+     * Donde esta el binario de Tesseract.
+     *
+     * Vive ACA, y no en cada lugar que construye un TesseractCli, porque
+     * tenerlo en dos lados fue exactamente el problema: Main miraba la ruta de
+     * instalacion de Windows y LectorService se conformaba con "tesseract" a
+     * secas. El instalador de Windows NO agrega Tesseract al PATH, asi que en
+     * esta maquina el modo image andaba y el servicio devolvia no_verificable
+     * en todas las lecturas —confianza 0, sin una sola linea de error—, porque
+     * PlateReader atrapa la excepcion del proceso que no existe y la convierte
+     * en "no pude leer". Un fallo de instalacion se veia igual que una foto
+     * borrosa.
+     */
+    public static String rutaPorDefecto() {
+        String delEntorno = System.getenv("TESSERACT_PATH");
+        if (delEntorno != null && !delEntorno.isBlank()) return delEntorno;
+        Path instalacionWindows = Path.of("C:/Program Files/Tesseract-OCR/tesseract.exe");
+        return Files.isExecutable(instalacionWindows) ? instalacionWindows.toString() : "tesseract";
+    }
+
     /** Cuantos caracteres alfanumericos vio Tesseract, y que matricula salio. */
     record Reading(OcrResult result, int rawLength) { }
 

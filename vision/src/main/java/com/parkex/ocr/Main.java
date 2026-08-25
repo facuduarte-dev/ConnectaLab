@@ -9,10 +9,11 @@ public final class Main {
         OpenCV.loadLocally();
         if (args.length < 1) { usage(); System.exit(2); }
 
-        // Alta en el padrón: normaliza con el MISMO normalizador que usa el OCR
-        // y hashea con la MISMA clave. Es lo único que garantiza que el hash
-        // guardado en vehiculos_autorizados y el que reporta la cámara sean
-        // idénticos (README 6 y 11).
+        // Calcula el HMAC de una matrícula a mano, con el MISMO normalizador y
+        // la MISMA clave que usa la cámara. Sirve para saber a qué hash debería
+        // corresponder una chapa conocida: la base guarda el hash y nunca el
+        // texto, así que sin este comando no hay forma de ir de una matrícula
+        // a su fila en "lecturas".
         if (args[0].equals("hash")) {
             if (args.length < 2) { usage(); System.exit(2); }
             ServiceConfig config = ServiceConfig.load(Path.of(System.getenv().getOrDefault("CONFIG", "config.json")));
@@ -29,7 +30,7 @@ public final class Main {
         }
 
         if (args.length < 2 || (!args[0].equals("image") && !args[0].equals("camera"))) { usage(); System.exit(2); }
-        String tess = System.getenv().getOrDefault("TESSERACT_PATH", defaultTesseract());
+        String tess = TesseractCli.rutaPorDefecto();
         PlateReader reader = new PlateReader(new PlateDetector(), new TesseractCli(tess, new PlateNormalizer()));
         List<OcrResult> readings = new ArrayList<>();
         if (args[0].equals("image")) {
@@ -55,7 +56,6 @@ public final class Main {
                 Distintivo.presente(result.plate()) ? "sí" : "no");
         String secret=System.getenv("HMAC_SECRET"); if(secret!=null&&!secret.isBlank()) System.out.println("HMAC-SHA256: "+new HmacHasher().hash(result.plate(),secret));
     }
-    private static String defaultTesseract(){ Path p=Path.of("C:/Program Files/Tesseract-OCR/tesseract.exe"); return Files.isExecutable(p)?p.toString():"tesseract"; }
     private static void saveDebugFrame(Mat frame, int number) throws Exception {
         String directory = System.getenv("DEBUG_DIR");
         if (directory == null || directory.isBlank()) return;

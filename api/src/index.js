@@ -7,7 +7,6 @@ import { plazasRouter } from './routes/plazas.js';
 import { eventosRouter } from './routes/eventos.js';
 import { lecturasRouter } from './routes/lecturas.js';
 import { alertasRouter } from './routes/alertas.js';
-import { vehiculosRouter } from './routes/vehiculos.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -25,7 +24,6 @@ app.use('/api/plazas', plazasRouter);
 app.use('/api/eventos', eventosRouter);
 app.use('/api/lecturas', lecturasRouter);
 app.use('/api/alertas', alertasRouter);
-app.use('/api/vehiculos', vehiculosRouter);
 
 app.use(errorHandler);
 

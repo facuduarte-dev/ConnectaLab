@@ -83,34 +83,27 @@ create table dispositivos (
 -- conviven sin restriccion.
 create unique index dispositivos_token_hash_unico on dispositivos (token_hash);
 
-create type tipo_permiso as enum ('abonado', 'discapacidad', 'empleado', 'visita');
-
--- No guarda la matricula: guarda su HMAC-SHA256. Ver seccion 6.
-create table vehiculos_autorizados (
-  id                 serial primary key,
-  estacionamiento_id integer not null references estacionamientos(id),
-  matricula_hash     text not null,
-  tipo_permiso       tipo_permiso not null,
-  referencia         text,          -- 'Unidad 402'. Nunca la matricula ni el nombre.
-  vigente_desde      date not null default current_date,
-  vigente_hasta      date,
-  activo             boolean not null default true,
-  unique (estacionamiento_id, matricula_hash, tipo_permiso)
-);
-
 create type resultado_lectura as enum (
   'autorizado', 'no_autorizado', 'no_verificable'
 );
 
 -- Una fila por intento de lectura de la camara de una plaza reservada. No
 -- guarda la matricula ni la imagen: solo el HMAC. Se poda a los 30 dias.
+--
+-- El hash NO se compara contra nada: identifica una lectura dentro del historial
+-- de su plaza y nada mas. Lo que decide la autorizacion -si la chapa lleva el
+-- distintivo- se mira en el lector, antes de hashear (README 4.3).
+--
+-- Tampoco hay una columna para el distintivo: en una plaza de discapacidad
+-- 'autorizado' YA significa que la chapa lo llevaba, y 'no_autorizado' que no.
+-- Seria el mismo dato escrito dos veces, y dos lugares donde puede terminar en
+-- desacuerdo consigo mismo.
 create table lecturas (
   id             bigserial primary key,
   plaza_id       integer not null references plazas(id),
   matricula_hash text,          -- null cuando el OCR no pudo leerla
   confianza      real not null check (confianza between 0 and 1),
   resultado      resultado_lectura not null,
-  vehiculo_id    integer references vehiculos_autorizados(id),
   creado_en      timestamptz not null default now()
 );
 
