@@ -35,7 +35,21 @@ public final class TesseractCli {
      *    modo y el 11 gasta lo suyo corra donde corra. Lo unico que cambiaba
      *    era un desempate, y una confianza bajaba de 0,78 a 0,70. */
     private static final int[] MODOS = {11, 7, 8};
-    private static final int SEGUNDOS_LIMITE = 60;
+    /** 180 y no 60 porque el limite es POR modo y tiene que entrarle al peor
+     *  caso de la maquina mas lenta, no de la mas rapida. Sobre un primer plano
+     *  (768x1024) los candidatos salen grandes y el lote llega a 39 variantes,
+     *  varias de 2932x800; ahi el modo 11 tarda 74 s en un Celeron N4500 de dos
+     *  nucleos y 5,6 s en la maquina donde se midieron los valores de
+     *  referencia. Con 60 s el 11 se cortaba solo en la lenta: el try/catch
+     *  salvaba la matricula, pero sin el aporte del 11 a la eleccion del mejor
+     *  recorte la confianza caia de 0,93 a 0,78 y quedaba por debajo del minimo
+     *  de 0,80, o sea no_verificable con la chapa bien leida.
+     *
+     *  No encarece el circuito real: un cuadro de camara son ~21 s en la lenta
+     *  y nunca se acerco al limite viejo. El numero solo entra en juego en el
+     *  primer plano, que pasa a tardar ~91 s en vez de fallar. El try/catch
+     *  sigue siendo la red para un Tesseract colgado de verdad. */
+    private static final int SEGUNDOS_LIMITE = 180;
 
     private final String executable; private final PlateNormalizer normalizer;
     public TesseractCli(String executable, PlateNormalizer normalizer) { this.executable = executable; this.normalizer = normalizer; }
