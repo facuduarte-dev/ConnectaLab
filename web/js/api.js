@@ -28,7 +28,19 @@ export const API = {
    * resto del objeto sigan funcionando sin tocarse.
    */
   get URL_BASE() {
-    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+    // Las IP privadas cuentan como local. 'npx serve' imprime la URL de red
+    // ademas de la de localhost, y abriendo esa la pagina quedaba servida desde
+    // 192.168.x.x: caia a la rama hosteada y la API de produccion le rechazaba
+    // el pedido por CORS, que solo admite el dominio de Netlify.
+    const host = location.hostname;
+    const segundoOcteto = Number(host.split('.')[1]);
+
+    const local = host === 'localhost'
+      || host === '127.0.0.1'
+      || host.startsWith('192.168.')
+      || host.startsWith('10.')
+      || (host.startsWith('172.') && segundoOcteto >= 16 && segundoOcteto <= 31);
+
     return local
       ? 'http://localhost:3000/api'
       : 'https://connectalab.onrender.com/api';
