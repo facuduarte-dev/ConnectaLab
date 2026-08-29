@@ -55,7 +55,7 @@ Comprobar:
 java -version && mvn -v && node --version && tesseract --list-langs
 ```
 
-Java 17 o mayor, Node 18 o mayor, y `eng` entre los idiomas.
+Java 17 o mayor, Node 22 o mayor, y `eng` entre los idiomas.
 
 ---
 
