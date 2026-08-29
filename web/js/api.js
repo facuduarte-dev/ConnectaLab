@@ -31,7 +31,7 @@ export const API = {
     const local = ['localhost', '127.0.0.1'].includes(location.hostname);
     return local
       ? 'http://localhost:3000/api'
-      : 'https://connectalab.onrender.com/';
+      : 'https://connectalab.onrender.com/api';
   },
 
   ARCHIVO_DEMO: 'datos/plazas-demo.json',
