@@ -14,7 +14,26 @@ export const API = {
   // 'real' -> pega contra el backend Express
   MODO: 'real',
 
-  URL_BASE: 'http://localhost:3000/api',
+  /**
+   * La URL de la API se resuelve en el navegador y no en un archivo de
+   * configuracion porque este frontend no tiene build: no hay paso de
+   * compilacion donde inyectar una variable de entorno.
+   *
+   * Servida desde localhost, la pagina pega contra la API local; servida desde
+   * cualquier otro dominio, contra la hosteada. Asi el mismo archivo sirve para
+   * desarrollo y para produccion sin tener que acordarse de cambiarlo antes de
+   * cada push.
+   *
+   * Va como getter y no como constante para que los `${this.URL_BASE}/...` del
+   * resto del objeto sigan funcionando sin tocarse.
+   */
+  get URL_BASE() {
+    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+    return local
+      ? 'http://localhost:3000/api'
+      : 'https://connectalab.onrender.com/';
+  },
+
   ARCHIVO_DEMO: 'datos/plazas-demo.json',
 
   /**
