@@ -47,7 +47,7 @@ sudo apt update
 sudo apt install git openjdk-17-jdk maven tesseract-ocr tesseract-ocr-eng
 ```
 
-Node 18 o mayor, preferentemente con [nvm](https://github.com/nvm-sh/nvm).
+Node 22 o mayor, preferentemente con [nvm](https://github.com/nvm-sh/nvm).
 
 Comprobar:
 
