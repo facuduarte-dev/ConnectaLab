@@ -175,6 +175,17 @@ pasaron es el de la máquina de esa persona.
 
 ## 8. Levantar todo
 
+En Linux, después de completar los archivos de configuración, el lanzador
+portátil verifica las dependencias e inicia los cuatro servicios:
+
+```bash
+./scripts/iniciar-local.sh
+```
+
+Los registros quedan en `logs/`. Para detener todo de forma segura, presionar
+`Ctrl+C` en esa misma terminal. El Monitor Serie del Arduino IDE debe estar
+cerrado para que el gateway pueda usar el puerto USB.
+
 Cuatro terminales, en este orden:
 
 ```bash
